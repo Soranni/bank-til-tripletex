@@ -102,4 +102,11 @@ skriv('test-5-avvik-i-sum.csv',
           'Rentedato', 'Ut', 'Inn', 'Arkivref.', 'Referanse') + '\n' +
       '\n'.join(bygg(feil).split('\n')[5:]).lstrip('\n'))
 
+# 6: linjer med dato, men uten lesbart beløp (reservert kortkjøp o.l.)
+uleselig = gyldig.rstrip('\n') + '\n' + '\n'.join([
+    q('15.08.2026', 'Reservert kortkjøp', 'R', 'Visa', '15.08.2026', '', '', '800009999', '9999'),
+    q('16.08.2026', 'Ugyldig beløp', 'B', 'Giro', '16.08.2026', 'xx,yy', '', '800009998', '9998'),
+]) + '\n'
+skriv('test-6-uleselige-linjer.csv', uleselig)
+
 print('\nFerdig. Alle data er oppdiktet.')

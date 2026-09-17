@@ -54,6 +54,7 @@ python3 lag-testfiler.py
 | `test-3-excel-odelagt.csv` | ⚠️ Fant ingen transaksjoner (lagret på nytt i Excel) |
 | `test-4-nytt-kolonnenavn.csv` | ⚠️ Fant ingen transaksjoner (banken døpte om kolonnen) |
 | `test-5-avvik-i-sum.csv` | 🔴 Rødt banner — summen matcher ikke bankens sluttsummer |
+| `test-6-uleselige-linjer.csv` | ⚠️ Merknad: «2 linjer med dato ble ikke lest inn» |
 
 Skillet mellom test-1 og test-2 er poenget: «ikke gjenkjent» betyr ny/ukjent
 bank, mens «Sparebank1/Eika» + null transaksjoner betyr at filen var tom.
@@ -64,6 +65,20 @@ Brukeren er regnskapsfører, ikke utvikler. Feil vises derfor i selve siden,
 med en **📋 Kopier feildetaljer**-knapp. Rapporten inneholder versjonsnummer,
 filnavn, størrelse, oppdaget format og de fem første linjene i filen — nok
 til å stille diagnose uten å be om selve bankfilen.
+
+## Merknader til regnskapsføreren
+
+Steg 2 viser en «Verdt å sjekke»-liste når noe fortjener et blikk:
+
+* **Linjer som ikke ble lest.** Parserne hopper over rader de ikke forstår.
+  Antall datolinjer i filen sammenlignes med antall leste transaksjoner, så
+  en tapt rad aldri forsvinner i stillhet.
+* **Helt like poster** — samme dato, tekst og beløp.
+* **Samme dato og beløp, ulik tekst.** Ser ut som dobbeltføring, er det
+  sjelden. To Visa-trekk på 304 kr samme dag er som regel to kjøp.
+* **Saldo etter import.** Banken oppgir inn- og utgående saldo, så siden
+  sier hva konto 1920 skal stå i — en fasit å avstemme mot.
+* **Årsskifte.** Et avsluttet regnskapsår tar ikke imot nye bilag.
 
 ## Kontrollsum
 

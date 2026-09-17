@@ -85,6 +85,18 @@
   .p-date { color: #6b7280; white-space: nowrap; width: 5.5rem; }
   .p-amt { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
+  /* ---- Merknader ---- */
+  .notes { margin-top: 1.1rem; border-top: 1px solid #f3f4f6; padding-top: 0.9rem; }
+  .notes h3 {
+    font-size: 0.75rem; margin: 0 0 0.6rem; color: #6b7280; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .note { display: flex; gap: 0.5rem; font-size: 0.85rem; margin-bottom: 0.55rem; align-items: flex-start; }
+  .note:last-child { margin-bottom: 0; }
+  .note .ico { flex: none; line-height: 1.5; }
+  .note.warn { color: #92400e; }
+  .note.info { color: #4b5563; }
+
   /* ---- Knapper ---- */
   button {
     background: #3b82f6; color: #fff; border: none; padding: 0.8rem 1.5rem;
@@ -167,6 +179,10 @@
     <div id="previewWrap" hidden>
       <table class="preview"><tbody id="previewBody"></tbody></table>
     </div>
+    <div class="notes" id="notes" hidden>
+      <h3>Verdt å sjekke</h3>
+      <div id="notesList"></div>
+    </div>
   </section>
 
   <!-- ============ STEG 3 ============ -->
@@ -185,7 +201,9 @@
       <li>Huk av <strong>La Tripletex generere mva-posteringene</strong></li>
       <li>Forhåndsvis og bekreft</li>
     </ol>
-    <div class="formats">Hver transaksjon blir ett bilag: <strong>1920 Bank</strong> mot <strong>1909 Diverse motpost</strong>.</div>
+    <div class="formats">Hver transaksjon blir ett bilag: <strong>1920 Bank</strong> mot
+    <strong>1909 Diverse motpost</strong>. Hele beløpet havner på 1909 og må omposteres
+    videre til riktige konti — 1909 skal ende på null.</div>
 
     <details class="help">
       <summary>Får du feilmelding om «avstemt kontoutskrift»?</summary>
@@ -679,7 +697,20 @@ function extractControlTotals(text) {
     const inn = parseNoNum(vals[iIn]);
     const ut = parseNoNum(vals[iOut]);
     if (isNaN(inn) || isNaN(ut)) return null;
-    return { inn: Math.abs(inn), ut: Math.abs(ut) };
+
+    // Saldoene står som regel i samme rad, og gir regnskapsføreren
+    // fasiten på hva konto 1920 skal stå i etter importen.
+    const iIng = labels.findIndex(c => c.indexOf("inngående saldo") === 0 || c.indexOf("inngaende saldo") === 0);
+    const iUtg = labels.findIndex(c => c.indexOf("utgående saldo") === 0 || c.indexOf("utgaende saldo") === 0);
+    const ing = iIng === -1 ? NaN : parseNoNum(vals[iIng]);
+    const utg = iUtg === -1 ? NaN : parseNoNum(vals[iUtg]);
+
+    return {
+      inn: Math.abs(inn),
+      ut: Math.abs(ut),
+      inngaende: isNaN(ing) ? null : ing,
+      utgaende: isNaN(utg) ? null : utg,
+    };
   }
   return null;
 }
@@ -706,6 +737,89 @@ function renderCheck(control, totalIn, totalOut) {
     "Konverteringen fant inn " + fmtNum(totalIn) + " kr og ut " + fmtNum(totalOut) + " kr.<br>" +
     "<strong>Ikke importer denne filen.</strong> Send den til Soran.";
   return false;
+}
+
+// ============ Merknader til regnskapsføreren ============
+
+// Ting som ikke er feil, men som en regnskapsfører bør se før han importerer:
+// linjer som ikke ble lest, poster som kan forveksles med dobbeltføring,
+// hvilken saldo kontoen skal ende på, og om filen krysser et årsskifte.
+function renderNotes(transactions, control, text) {
+  const notes = [];
+
+  // Linjer som ser ut som transaksjoner, men som ikke kom med.
+  const datalinjer = text.split(/\r?\n/).filter(l =>
+    /^"?\d{2}\.\d{2}\.\d{4}/.test(l) || /^"?\d{4}[\/-]\d{2}[\/-]\d{2}/.test(l)).length;
+  const hoppet = datalinjer - transactions.length;
+  if (hoppet > 0) {
+    notes.push(["warn", hoppet + (hoppet === 1 ? " linje" : " linjer") + " med dato i filen ble ikke lest inn. " +
+      "Det er normalt for linjer uten beløp, men sammenlign antallet med nettbanken."]);
+  }
+
+  // Helt like poster - samme dato, tekst og beløp.
+  const sett = {};
+  let like = 0;
+  transactions.forEach(t => {
+    const k = t.date + "|" + t.desc + "|" + t.amount;
+    if (sett[k]) like++; else sett[k] = true;
+  });
+  if (like > 0) {
+    notes.push(["warn", like + (like === 1 ? " post er helt lik en annen" : " poster er helt like andre") +
+      " (samme dato, tekst og beløp). Kontroller at de virkelig står to ganger i nettbanken."]);
+  }
+
+  // Samme dato og beløp, men ulik tekst - ser ut som dobbeltføring, er det sjelden.
+  const par = {};
+  transactions.forEach(t => {
+    const k = t.date + "|" + t.amount.toFixed(2) + "|" + t.is_credit;
+    (par[k] = par[k] || []).push(t);
+  });
+  const parListe = Object.keys(par).map(k => par[k]).filter(v => {
+    if (v.length < 2) return false;
+    const tekster = {};
+    v.forEach(t => { tekster[t.desc] = true; });
+    return Object.keys(tekster).length > 1;
+  });
+  if (parListe.length) {
+    const eks = parListe.map(v => fmtDate(v[0].date) + " " +
+      (v[0].is_credit ? "+" : "−") + fmtNum(v[0].amount) + " kr").join(", ");
+    notes.push(["info", parListe.length + (parListe.length === 1 ? " gang" : " ganger") +
+      " står to poster med samme dato og samme beløp, men ulik tekst (" + eks + "). " +
+      "Det er som regel ekte separate posteringer, ikke dobbeltføring — se teksten i listen over."]);
+  }
+
+  // Fasit på hva konto 1920 skal stå i etterpå.
+  if (control && control.utgaende !== null && control.utgaende !== undefined) {
+    let txt = "Etter import skal konto 1920 stå i " + fmtNum(control.utgaende) + " kr.";
+    if (control.inngaende !== null && control.inngaende !== undefined) {
+      txt += " Banken oppgir inngående saldo " + fmtNum(control.inngaende) + " kr — " +
+             "den bør stemme med saldoen i Tripletex før du importerer.";
+    }
+    notes.push(["info", txt]);
+  }
+
+  // Et avsluttet regnskapsår tar ikke imot nye bilag.
+  const aar = [];
+  transactions.forEach(t => { if (aar.indexOf(t.year) === -1) aar.push(t.year); });
+  if (aar.length > 1) {
+    notes.push(["warn", "Filen går over to regnskapsår (" + aar.sort().join(" og ") +
+      "). Importer helst ett år om gangen — et avsluttet år tar ikke imot nye bilag."]);
+  }
+
+  const liste = document.getElementById("notesList");
+  liste.innerHTML = "";
+  notes.forEach(n => {
+    const row = document.createElement("div");
+    row.className = "note " + n[0];
+    const ico = document.createElement("span");
+    ico.className = "ico";
+    ico.textContent = n[0] === "warn" ? "⚠️" : "ℹ️";
+    const txt = document.createElement("span");
+    txt.textContent = n[1];
+    row.append(ico, txt);
+    liste.appendChild(row);
+  });
+  document.getElementById("notes").hidden = notes.length === 0;
 }
 
 // ============ Forhåndsvisning ============
@@ -802,7 +916,8 @@ async function handleFile(file) {
     chosenBox.hidden = false;
     dropzone.hidden = true;
 
-    renderCheck(extractControlTotals(text), totalIn, totalOut);
+    const kontroll = extractControlTotals(text);
+    renderCheck(kontroll, totalIn, totalOut);
 
     summaryEl.innerHTML =
       "<tr><td>Bank</td><td>" + esc(formatLabel(fmt)) + "</td></tr>" +
@@ -819,6 +934,7 @@ async function handleFile(file) {
         (transactions.length * 2) + " posteringslinjer)</td></tr>";
 
     renderPreview(transactions);
+    renderNotes(transactions, kontroll, text);
     renderMonths(transactions);
     dlNameEl.textContent = lastFilename;
 
