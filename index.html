@@ -119,6 +119,10 @@
   .konto-felt input { margin-top: 0.35rem; }
   .konto-felt input.ugyldig { border-color: #dc2626; background: #fef2f2; }
   .konto-hint { font-size: 0.8rem; color: #6b7280; margin: 0 0 1.1rem; }
+  .konto-hint.avvik {
+    color: #92400e; background: #fffbeb; border-left: 4px solid #f59e0b;
+    border-radius: 6px; padding: 0.6rem 0.8rem;
+  }
 
   /* ---- Kolonnevelger ---- */
   #mapperWrap {
@@ -207,7 +211,7 @@
     <div class="konti">
       <div class="konto-felt">
         <label for="skilletegn">Skilletegn</label>
-        <select id="skilletegn">
+        <select id="skilletegn" autocomplete="off">
           <option value=";">Semikolon&nbsp;&nbsp;;</option>
           <option value=",">Komma&nbsp;&nbsp;,</option>
           <option value="tab">Tabulator</option>
@@ -215,7 +219,7 @@
       </div>
       <div class="konto-felt">
         <label for="startRad">Data starter på rad</label>
-        <input id="startRad" type="number" min="1" value="2">
+        <input id="startRad" autocomplete="off" type="number" min="1" value="2">
       </div>
     </div>
 
@@ -246,7 +250,7 @@
     <div class="konti">
       <div class="konto-felt">
         <label for="bankKonto">Bankkonto (debet/kredit)</label>
-        <select id="bankKonto">
+        <select id="bankKonto" autocomplete="off">
           <option value="1920" selected>1920 – Bankinnskudd</option>
           <option value="1921">1921 – Bankinnskudd 2</option>
           <option value="1922">1922 – Bankinnskudd 3</option>
@@ -254,20 +258,19 @@
           <option value="1900">1900 – Kontanter</option>
           <option value="annet">Annet kontonummer …</option>
         </select>
-        <input id="bankKontoAnnet" hidden inputmode="numeric" maxlength="4" placeholder="F.eks. 1925">
+        <input id="bankKontoAnnet" autocomplete="off" hidden inputmode="numeric" maxlength="4" placeholder="F.eks. 1925">
       </div>
       <div class="konto-felt">
         <label for="motKonto">Motkonto</label>
-        <select id="motKonto">
+        <select id="motKonto" autocomplete="off">
           <option value="1909" selected>1909 – Diverse motpost</option>
           <option value="1999">1999 – Annen motpost</option>
           <option value="annet">Annet kontonummer …</option>
         </select>
-        <input id="motKontoAnnet" hidden inputmode="numeric" maxlength="4" placeholder="F.eks. 2999">
+        <input id="motKontoAnnet" autocomplete="off" hidden inputmode="numeric" maxlength="4" placeholder="F.eks. 2999">
       </div>
     </div>
-    <p class="konto-hint">Standard er <strong>1920</strong> mot <strong>1909</strong>. Endre bare hvis
-    klientens kontoplan krever noe annet — for eksempel når klienten har flere bankkonti.</p>
+    <p class="konto-hint" id="kontoHint"></p>
 
     <button id="downloadBtn">⬇️ Last ned importfilen</button>
     <div class="dl-name">Lagres som <code id="dlName"></code></div>
@@ -665,6 +668,7 @@ const bankKontoAnnetEl = document.getElementById("bankKontoAnnet");
 const motKontoEl = document.getElementById("motKonto");
 const motKontoAnnetEl = document.getElementById("motKontoAnnet");
 const konteringsTekstEl = document.getElementById("konteringsTekst");
+const kontoHintEl = document.getElementById("kontoHint");
 const mapperSeksjon = document.getElementById("mapper");
 const skilletegnEl = document.getElementById("skilletegn");
 const startRadEl = document.getElementById("startRad");
@@ -1035,6 +1039,15 @@ function lesKonto(select, input, standard) {
 function oppdaterKontering() {
   BANK_ACCOUNT = lesKonto(bankKontoEl, bankKontoAnnetEl, 1920);
   COUNTER_ACCOUNT = lesKonto(motKontoEl, motKontoAnnetEl, 1909);
+
+  const standard = (BANK_ACCOUNT === 1920 && COUNTER_ACCOUNT === 1909);
+  kontoHintEl.classList.toggle("avvik", !standard);
+  kontoHintEl.innerHTML = standard
+    ? "Standard er <strong>1920</strong> mot <strong>1909</strong>. Endre bare hvis klientens " +
+      "kontoplan krever noe annet — for eksempel når klienten har flere bankkonti."
+    : "⚠️ Du bruker <strong>ikke</strong> standardkontoene. Filen føres mot <strong>" +
+      BANK_ACCOUNT + "</strong> og <strong>" + COUNTER_ACCOUNT + "</strong> i stedet for 1920 og 1909. " +
+      "Sjekk at det er riktig for denne klienten før du importerer.";
 
   konteringsTekstEl.innerHTML = "Hver transaksjon blir ett bilag: <strong>" + BANK_ACCOUNT +
     " Bank</strong> mot <strong>" + COUNTER_ACCOUNT + " motpost</strong>. Hele beløpet havner på " +
