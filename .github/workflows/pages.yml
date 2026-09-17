@@ -1,0 +1,45 @@
+name: Publiser til GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publiser:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publisering.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Commit-hashen stemples inn i siden. Da peker en skjermdump fra
+      # regnskapsføreren entydig på én bestemt utgave, ikke bare en dato.
+      - name: Stemple versjon
+        run: |
+          KORT=$(git rev-parse --short HEAD)
+          DATO=$(git log -1 --format=%cd --date=format:'%d.%m.%Y')
+          sed -i "s/__VERSION__/${KORT}/g; s/__BYGGDATO__/${DATO}/g" index.html
+          echo "Stemplet versjon: ${KORT} (${DATO})"
+          grep -q "__VERSION__" index.html && { echo "FEIL: plassholder star igjen"; exit 1; } || true
+
+      # En utgave som ikke passerer testene skal aldri na brukeren.
+      - name: Kjør tester
+        run: node test.js
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: publisering
+        uses: actions/deploy-pages@v4

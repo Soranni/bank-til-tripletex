@@ -305,7 +305,9 @@
 
   <div class="footer">
     Alt skjer lokalt i nettleseren din — ingen data sendes til noen server.<br>
-    Versjon <span id="version"></span>
+    Versjon <span id="version"></span><br>
+    Oppgi versjonen hvis du melder fra om en feil — den viser nøyaktig hvilken
+    utgave du kjørte.
   </div>
 </div>
 
@@ -642,9 +644,13 @@ function toIso88591Bytes(str) {
 
 // ============ UI ============
 
-// Vises i bunnteksten og i feilrapporten, slik at en skjermdump rontger
-// nøyaktig hvilken versjon som ble kjørt.
-const VERSION = "2026-09-17";
+// Stemples av GitHub Actions ved publisering, slik at en skjermdump fra
+// brukeren peker entydig på én bestemt commit — ikke bare på en dato.
+// Åpnes filen lokalt står plassholderne igjen, og siden sier "lokal".
+const VERSION_RAA = "__VERSION__";
+const BYGGDATO_RAA = "__BYGGDATO__";
+const VERSION = VERSION_RAA.indexOf("__") === 0 ? "lokal" : VERSION_RAA;
+const BYGGDATO = BYGGDATO_RAA.indexOf("__") === 0 ? "" : BYGGDATO_RAA;
 
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
@@ -676,7 +682,7 @@ const mapperTabell = document.getElementById("mapperTabell");
 const mapperStatus = document.getElementById("mapperStatus");
 const mapperLesBtn = document.getElementById("mapperLes");
 
-document.getElementById("version").textContent = VERSION;
+document.getElementById("version").textContent = VERSION + (BYGGDATO ? " · " + BYGGDATO : "");
 
 // Siste vellykkede parsing, slik at filen kan bygges på nytt når
 // regnskapsføreren bytter kontonummer uten å velge filen om igjen.
