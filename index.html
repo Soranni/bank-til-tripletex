@@ -994,7 +994,12 @@ function suggestFilename(header, transactions) {
       periode += "_" + to.substring(0, 4) + "-" + to.substring(4, 6);
     }
   }
-  return [name || "bank", periode, "gbat10"].filter(Boolean).join("_") + ".csv";
+  // Brukes andre konti enn standard, ma det fremga av filnavnet. Ellers far
+  // flere varianter av samme maned identisk navn, og kan forveksles.
+  const konti = (BANK_ACCOUNT === 1920 && COUNTER_ACCOUNT === 1909)
+    ? "" : BANK_ACCOUNT + "-" + COUNTER_ACCOUNT;
+
+  return [name || "bank", periode, konti, "gbat10"].filter(Boolean).join("_") + ".csv";
 }
 
 // Norske bankfiler bruker semikolon nettopp fordi desimaltegnet er komma.
@@ -1023,7 +1028,9 @@ function lesKonto(select, input, standard) {
   if (select.value !== "annet") {
     input.hidden = true;
     input.classList.remove("ugyldig");
-    return parseInt(select.value, 10);
+    // Et uventet tomt eller ugyldig valg skal aldri havne i bilaget.
+    const n = parseInt(select.value, 10);
+    return (isFinite(n) && n > 0) ? n : standard;
   }
   input.hidden = false;
   const v = input.value.trim();
@@ -1054,9 +1061,11 @@ function oppdaterKontering() {
     COUNTER_ACCOUNT + " og må omposteres videre til riktige konti — " + COUNTER_ACCOUNT +
     " skal ende på null.";
 
-  // Bygg filen på nytt med de valgte kontoene.
+  // Bygg filen og filnavnet på nytt med de valgte kontoene.
   if (sisteParsing) {
     lastGbat10 = buildGBAT10(sisteParsing.header, sisteParsing.transactions);
+    lastFilename = suggestFilename(sisteParsing.header, sisteParsing.transactions);
+    dlNameEl.textContent = lastFilename;
   }
 }
 
@@ -1316,8 +1325,7 @@ function visResultat(file, header, transactions, text, banknavn) {
     const netto = totalIn - totalOut;
 
     sisteParsing = { header: header, transactions: transactions };
-    oppdaterKontering();
-    lastFilename = suggestFilename(header, transactions);
+    oppdaterKontering();   // setter bade lastGbat10 og lastFilename
 
     // Steg 1 kollapser til en bekreftelseslinje.
     chosenName.textContent = file.name;

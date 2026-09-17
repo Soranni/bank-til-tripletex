@@ -96,6 +96,10 @@ driftskonto og skattetrekkskonto på 1920. «Annet kontonummer …» gir friteks
 for kontoplaner uten forhåndsvalg. Ufullstendig inntasting faller tilbake til
 standard, så filen aldri blir ugyldig underveis.
 
+Brukes andre konti enn standard, kommer de med i filnavnet —
+`host-tattoo-as_2026-08_1921-1999_gbat10.csv`. Uten det ville flere varianter
+av samme måned fått identisk navn og blitt umulige å skille i nedlastingsmappa.
+
 ## Når banken ikke gjenkjennes
 
 Feiler gjenkjenningen, tilbyr siden **«Sett opp kolonnene selv»**. Da vises de
