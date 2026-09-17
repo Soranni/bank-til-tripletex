@@ -120,6 +120,22 @@
   .konto-felt input.ugyldig { border-color: #dc2626; background: #fef2f2; }
   .konto-hint { font-size: 0.8rem; color: #6b7280; margin: 0 0 1.1rem; }
 
+  /* ---- Kolonnevelger ---- */
+  #mapperWrap {
+    overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.9rem;
+  }
+  table.mapper { border-collapse: collapse; font-size: 0.78rem; white-space: nowrap; }
+  table.mapper td {
+    padding: 0.35rem 0.6rem; border-bottom: 1px solid #f3f4f6;
+    border-right: 1px solid #f3f4f6; text-align: left; vertical-align: middle;
+  }
+  table.mapper td.radnr { color: #9ca3af; background: #fafbfc; text-align: right; }
+  table.mapper select {
+    font-size: 0.75rem; padding: 0.25rem; border: 1px solid #d1d5db;
+    border-radius: 4px; width: 100%; font-family: inherit; background: #fff;
+  }
+  table.mapper tr.roller td { background: #f8fafc; border-bottom: 2px solid #e5e7eb; }
+
   /* ---- Instruksjoner ---- */
   .steps-list { font-size: 0.9rem; padding-left: 1.3rem; margin: 1.5rem 0 0; }
   .steps-list li { margin-bottom: 0.35rem; }
@@ -181,6 +197,32 @@
   </section>
 
   <div class="error" id="error" hidden></div>
+
+  <!-- ============ Manuell kolonnevelger ============ -->
+  <section class="step" id="mapper" hidden>
+    <div class="step-head"><span class="num">⚙</span><h2>Sett opp kolonnene selv</h2></div>
+    <p class="tip">Bruk denne når banken ikke er støttet fra før. Velg hvilken kolonne som er
+    dato, tekst og beløp, så leser siden filen etter dine valg i stedet for å gjette.</p>
+
+    <div class="konti">
+      <div class="konto-felt">
+        <label for="skilletegn">Skilletegn</label>
+        <select id="skilletegn">
+          <option value=";">Semikolon&nbsp;&nbsp;;</option>
+          <option value=",">Komma&nbsp;&nbsp;,</option>
+          <option value="tab">Tabulator</option>
+        </select>
+      </div>
+      <div class="konto-felt">
+        <label for="startRad">Data starter på rad</label>
+        <input id="startRad" type="number" min="1" value="2">
+      </div>
+    </div>
+
+    <div id="mapperWrap"><table class="mapper" id="mapperTabell"></table></div>
+    <div class="banner neutral" id="mapperStatus" hidden></div>
+    <button id="mapperLes">Les inn filen med disse valgene</button>
+  </section>
 
   <!-- ============ STEG 2 ============ -->
   <section class="step" id="step2" hidden>
@@ -623,6 +665,12 @@ const bankKontoAnnetEl = document.getElementById("bankKontoAnnet");
 const motKontoEl = document.getElementById("motKonto");
 const motKontoAnnetEl = document.getElementById("motKontoAnnet");
 const konteringsTekstEl = document.getElementById("konteringsTekst");
+const mapperSeksjon = document.getElementById("mapper");
+const skilletegnEl = document.getElementById("skilletegn");
+const startRadEl = document.getElementById("startRad");
+const mapperTabell = document.getElementById("mapperTabell");
+const mapperStatus = document.getElementById("mapperStatus");
+const mapperLesBtn = document.getElementById("mapperLes");
 
 document.getElementById("version").textContent = VERSION;
 
@@ -667,7 +715,7 @@ function formatLabel(fmt) {
 
 // ============ Feilvisning (uten konsoll) ============
 
-function showError(msg, details) {
+function showError(msg, details, kanMappe) {
   lastErrorDetails = details || "";
   errorDiv.innerHTML = "";
 
@@ -692,6 +740,14 @@ function showError(msg, details) {
     hint.className = "err-hint";
     hint.textContent = "Kopier teksten over (eller ta en skjermdump) og send den til Soran.";
     errorDiv.appendChild(hint);
+  }
+
+  if (kanMappe) {
+    const mapp = document.createElement("button");
+    mapp.className = "secondary";
+    mapp.textContent = "⚙️ Sett opp kolonnene selv";
+    mapp.addEventListener("click", () => klargjorMapper(sisteFeilFil, sisteFeilTekst));
+    errorDiv.appendChild(mapp);
   }
 
   errorDiv.hidden = false;
@@ -994,30 +1050,253 @@ function oppdaterKontering() {
 [bankKontoEl, motKontoEl].forEach(el => el.addEventListener("change", oppdaterKontering));
 [bankKontoAnnetEl, motKontoAnnetEl].forEach(el => el.addEventListener("input", oppdaterKontering));
 
+// ============ Manuell kolonnevelger ============
+
+// Brukes når filen ikke lar seg gjenkjenne automatisk. Regnskapsføreren peker
+// selv ut hvilke kolonner som er dato, tekst og beløp, så en ny bank kan tas
+// i bruk uten at koden må endres.
+
+let mapperTekst = "";
+let mapperFil = null;
+
+// Filen som nettopp feilet, slik at kolonnevelgeren kan ta over.
+let sisteFeilFil = null;
+let sisteFeilTekst = "";
+
+const ROLLER = [
+  ["", "— ignorer —"],
+  ["dato", "Dato"],
+  ["tekst", "Tekst"],
+  ["inn", "Inn (positivt)"],
+  ["ut", "Ut (positivt)"],
+  ["belop", "Beløp (+/−)"],
+];
+
+function gjettSkilletegn(text) {
+  const linjer = text.split(/\r?\n/).filter(l => l.trim()).slice(0, 15);
+  let best = ";", flest = 0;
+  [[";", ";"], [",", ","], ["tab", "\t"]].forEach(pair => {
+    const snitt = linjer.reduce((sum, l) => sum + (l.split(pair[1]).length - 1), 0) /
+                  Math.max(1, linjer.length);
+    if (snitt > flest) { flest = snitt; best = pair[0]; }
+  });
+  return best;
+}
+
+function valgtSkilletegn() {
+  return skilletegnEl.value === "tab" ? "\t" : skilletegnEl.value;
+}
+
+// Tåler 03.08.2026, 2026-08-03, 2026/08/03 og 3/8-2026.
+function tolkDato(v) {
+  const t = String(v || "").trim().replace(/^"|"$/g, "");
+  let m = t.match(/^(\d{1,2})[.\/\-](\d{1,2})[.\/\-](\d{2,4})/);
+  if (m) {
+    let ar = +m[3];
+    if (ar < 100) ar += 2000;
+    return { year: ar, month: +m[2], day: +m[1] };
+  }
+  m = t.match(/^(\d{4})[.\/\-](\d{1,2})[.\/\-](\d{1,2})/);
+  if (m) return { year: +m[1], month: +m[2], day: +m[3] };
+  return null;
+}
+
+// Tåler både 1.234,56 (norsk) og 1,234.56 (engelsk).
+function tolkBelop(v) {
+  let t = String(v == null ? "" : v).replace(/["\s ]/g, "");
+  if (!t) return NaN;
+  const komma = t.lastIndexOf(","), punkt = t.lastIndexOf(".");
+  if (komma > -1 && punkt > -1) {
+    t = komma > punkt ? t.replace(/\./g, "").replace(",", ".") : t.replace(/,/g, "");
+  } else if (komma > -1) {
+    // Komma alene er desimaltegn når det står 1-2 siffer etter.
+    t = (t.length - komma - 1) <= 2 ? t.replace(",", ".") : t.replace(/,/g, "");
+  }
+  const n = parseFloat(t);
+  return isNaN(n) ? NaN : n;
+}
+
+function mapperLinjer() {
+  return mapperTekst.split(/\r?\n/).filter(l => l.length > 0);
+}
+
+function mapperCeller(linje) {
+  return parseCsvLine(linje, valgtSkilletegn()).map(c => c.trim().replace(/^"|"$/g, ""));
+}
+
+// Gjetter rollene ut fra kolonnenavn, og hvilken rad dataene starter på.
+function gjettOppsett(rader) {
+  let startRad = 1;
+  for (let i = 0; i < rader.length; i++) {
+    if (rader[i].some(c => tolkDato(c))) { startRad = i + 1; break; }
+  }
+  const navnRad = rader[Math.max(0, startRad - 2)] || [];
+  const antall = Math.max.apply(null, rader.map(r => r.length).concat([1]));
+  const roller = [];
+  for (let k = 0; k < antall; k++) {
+    const n = (navnRad[k] || "").toLowerCase();
+    if (/dato|date/.test(n)) roller.push("dato");
+    else if (/tekst|beskriv|forklar|omtale|melding|description|text/.test(n)) roller.push("tekst");
+    else if (/^inn|credit/.test(n)) roller.push("inn");
+    else if (/^ut|debit/.test(n)) roller.push("ut");
+    else if (/bel(ø|o)p|amount|sum/.test(n)) roller.push("belop");
+    else roller.push("");
+  }
+  // Fant vi ingen datokolonne på navn, ta den første som inneholder en dato.
+  if (roller.indexOf("dato") === -1) {
+    const dataRad = rader[startRad - 1] || [];
+    for (let k = 0; k < dataRad.length; k++) {
+      if (tolkDato(dataRad[k])) { roller[k] = "dato"; break; }
+    }
+  }
+  return { startRad: startRad, roller: roller };
+}
+
+function tegnMapper(gjettPaNytt) {
+  const linjer = mapperLinjer().slice(0, 10);
+  const rader = linjer.map(mapperCeller);
+  const antall = Math.max.apply(null, rader.map(r => r.length).concat([1]));
+
+  let roller;
+  if (gjettPaNytt) {
+    const gjett = gjettOppsett(rader);
+    roller = gjett.roller;
+    startRadEl.value = gjett.startRad;
+  } else {
+    roller = [].slice.call(mapperTabell.querySelectorAll("select")).map(v => v.value);
+  }
+
+  mapperTabell.innerHTML = "";
+
+  const rolleRad = document.createElement("tr");
+  rolleRad.className = "roller";
+  rolleRad.appendChild(document.createElement("td"));
+  for (let k = 0; k < antall; k++) {
+    const td = document.createElement("td");
+    const sel = document.createElement("select");
+    ROLLER.forEach(r => {
+      const o = document.createElement("option");
+      o.value = r[0];
+      o.textContent = r[1];
+      if ((roller[k] || "") === r[0]) o.selected = true;
+      sel.appendChild(o);
+    });
+    td.appendChild(sel);
+    rolleRad.appendChild(td);
+  }
+  mapperTabell.appendChild(rolleRad);
+
+  rader.forEach((rad, i) => {
+    const tr = document.createElement("tr");
+    const nr = document.createElement("td");
+    nr.className = "radnr";
+    nr.textContent = String(i + 1);
+    tr.appendChild(nr);
+    for (let k = 0; k < antall; k++) {
+      const td = document.createElement("td");
+      td.textContent = (rad[k] || "").substring(0, 40);
+      tr.appendChild(td);
+    }
+    mapperTabell.appendChild(tr);
+  });
+}
+
+function mapperMelding(tekst) {
+  mapperStatus.textContent = tekst || "";
+  mapperStatus.hidden = !tekst;
+}
+
+function klargjorMapper(file, text) {
+  mapperFil = file;
+  mapperTekst = text;
+  skilletegnEl.value = gjettSkilletegn(text);
+  tegnMapper(true);
+  mapperMelding("");
+  mapperSeksjon.hidden = false;
+}
+
+function lesMedMapping() {
+  const roller = [].slice.call(mapperTabell.querySelectorAll("select")).map(v => v.value);
+  const iDato = roller.indexOf("dato");
+  const iTekst = roller.indexOf("tekst");
+  const iInn = roller.indexOf("inn");
+  const iUt = roller.indexOf("ut");
+  const iBelop = roller.indexOf("belop");
+
+  if (iDato === -1) { mapperMelding("Velg hvilken kolonne som inneholder datoen."); return; }
+  if (iInn === -1 && iUt === -1 && iBelop === -1) {
+    mapperMelding("Velg minst én kolonne med beløp — enten Inn/Ut, eller én kolonne med fortegn.");
+    return;
+  }
+
+  const start = Math.max(1, parseInt(startRadEl.value, 10) || 1) - 1;
+  const linjer = mapperLinjer();
+  const transactions = [];
+  let hoppet = 0;
+
+  for (let i = start; i < linjer.length; i++) {
+    const c = mapperCeller(linjer[i]);
+    const d = tolkDato(c[iDato]);
+    if (!d) { hoppet++; continue; }
+
+    let belop = NaN, kredit = true;
+    if (iBelop > -1) {
+      belop = tolkBelop(c[iBelop]);
+      kredit = belop > 0;
+      belop = Math.abs(belop);
+    } else {
+      const inn = iInn > -1 ? tolkBelop(c[iInn]) : NaN;
+      const ut = iUt > -1 ? tolkBelop(c[iUt]) : NaN;
+      if (!isNaN(inn) && Math.abs(inn) > 0) { belop = Math.abs(inn); kredit = true; }
+      else if (!isNaN(ut) && Math.abs(ut) > 0) { belop = Math.abs(ut); kredit = false; }
+    }
+    if (isNaN(belop) || belop === 0) { hoppet++; continue; }
+
+    transactions.push({
+      date: ymdString(d),
+      period: d.month,
+      year: d.year,
+      amount: belop,
+      is_credit: kredit,
+      desc: ((iTekst > -1 ? c[iTekst] : "") || "Banktransaksjon").substring(0, 100),
+    });
+  }
+
+  if (!transactions.length) {
+    mapperMelding("Fant ingen transaksjoner med disse valgene. Sjekk skilletegn, " +
+                  "hvilken rad dataene starter på, og hvilke kolonner du har valgt.");
+    return;
+  }
+
+  const datoer = transactions.map(t => t.date).sort();
+  const header = {
+    account_name: "",
+    account_number: "",
+    period_from: datoer[0],
+    period_to: datoer[datoer.length - 1],
+  };
+
+  mapperMelding("");
+  visResultat(mapperFil, header, transactions, mapperTekst, "Egne kolonnevalg");
+
+  if (hoppet > 0) {
+    const ekstra = document.createElement("div");
+    ekstra.className = "note warn";
+    ekstra.innerHTML = '<span class="ico">⚠️</span><span>' + hoppet +
+      (hoppet === 1 ? " rad" : " rader") + " ble hoppet over fordi dato eller beløp ikke lot seg lese." +
+      "</span>";
+    document.getElementById("notesList").appendChild(ekstra);
+    document.getElementById("notes").hidden = false;
+  }
+}
+
+skilletegnEl.addEventListener("change", () => tegnMapper(true));
+mapperLesBtn.addEventListener("click", lesMedMapping);
+
 // ============ Hovedflyt ============
 
-async function handleFile(file) {
-  errorDiv.hidden = true;
-  let text = "", fmt = "";
-  try {
-    text = await readFile(file);
-    fmt = detectFormat(text);
-    let parsed;
-    if (fmt === "kontoinfo") parsed = parseKontoinfo(text);
-    else if (fmt === "oversiktkonti") parsed = parseOversiktKonti(text);
-    else if (fmt === "transaksjonsliste") parsed = parseTransaksjonsliste(text);
-    else parsed = parseNordea(text);
-
-    const { header, transactions } = parsed;
-    if (!transactions.length) {
-      dropzone.hidden = false;
-      chosenBox.hidden = true;
-      showError(forklarTomFil(text) ||
-                "Fant ingen transaksjoner i filen. Sjekk at det er en gyldig bankutskrift.",
-                fileDiagnostics(file, text, fmt));
-      return;
-    }
-
+// Felles resultatvisning for automatisk gjenkjenning og manuell kolonnevelging.
+function visResultat(file, header, transactions, text, banknavn) {
     const antallInn = transactions.filter(t => t.is_credit).length;
     const totalIn = transactions.filter(t => t.is_credit).reduce((s, t) => s + t.amount, 0);
     const totalOut = transactions.filter(t => !t.is_credit).reduce((s, t) => s + t.amount, 0);
@@ -1036,7 +1315,7 @@ async function handleFile(file) {
     renderCheck(kontroll, totalIn, totalOut);
 
     summaryEl.innerHTML =
-      "<tr><td>Bank</td><td>" + esc(formatLabel(fmt)) + "</td></tr>" +
+      "<tr><td>Bank</td><td>" + esc(banknavn) + "</td></tr>" +
       "<tr><td>Konto</td><td>" + esc(header.account_name || "") + " " +
         (header.account_number ? "(" + esc(header.account_number) + ")" : "") + "</td></tr>" +
       "<tr><td>Periode</td><td>" + fmtDate(header.period_from) + " – " + fmtDate(header.period_to) + "</td></tr>" +
@@ -1056,6 +1335,36 @@ async function handleFile(file) {
 
     step2.hidden = false;
     step3.hidden = false;
+
+  mapperSeksjon.hidden = true;
+  errorDiv.hidden = true;
+}
+
+async function handleFile(file) {
+  errorDiv.hidden = true;
+  let text = "", fmt = "";
+  try {
+    text = await readFile(file);
+    fmt = detectFormat(text);
+    let parsed;
+    if (fmt === "kontoinfo") parsed = parseKontoinfo(text);
+    else if (fmt === "oversiktkonti") parsed = parseOversiktKonti(text);
+    else if (fmt === "transaksjonsliste") parsed = parseTransaksjonsliste(text);
+    else parsed = parseNordea(text);
+
+    const { header, transactions } = parsed;
+    if (!transactions.length) {
+      dropzone.hidden = false;
+      chosenBox.hidden = true;
+      sisteFeilFil = file;
+      sisteFeilTekst = text;
+      showError(forklarTomFil(text) ||
+                "Fant ingen transaksjoner i filen. Sjekk at det er en gyldig bankutskrift.",
+                fileDiagnostics(file, text, fmt), true);
+      return;
+    }
+
+    visResultat(file, header, transactions, text, formatLabel(fmt));
   } catch (err) {
     console.error(err);
     const stack = (err && err.stack) ? err.stack.split("\n").slice(0, 3).join(" | ") : String(err);
@@ -1077,6 +1386,7 @@ function resetAll() {
   previewWrap.hidden = true;
   chosenBox.hidden = true;
   dropzone.hidden = false;
+  mapperSeksjon.hidden = true;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 

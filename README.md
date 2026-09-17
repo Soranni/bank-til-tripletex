@@ -57,8 +57,9 @@ forventede merknader og at hvert bilag balanserer til null.
 | `demo-sparebank1-gyldig.csv` | ✅ Grønt banner, 12 transaksjoner |
 | `test-1-ukjent-bank.csv` | ⚠️ Fant ingen transaksjoner — format ikke gjenkjent |
 | `test-2-ingen-transaksjoner.csv` | ⚠️ Fant ingen transaksjoner — men format *gjenkjent* |
-| `test-3-excel-odelagt.csv` | ⚠️ Fant ingen transaksjoner (lagret på nytt i Excel) |
-| `test-4-nytt-kolonnenavn.csv` | ⚠️ Fant ingen transaksjoner (banken døpte om kolonnen) |
+| `test-3-excel-lagret.csv` | ✅ Leses nå — Excel beholdt semikolon, men fjernet hermetegn |
+| `test-4-nytt-kolonnenavn.csv` | ✅ Leses nå — «Bokføringsdato» i stedet for «Bokført dato» |
+| `test-7-excel-komma.csv` | ⚠️ Egen forklaring: komma kolliderer med desimaltegnet |
 | `test-5-avvik-i-sum.csv` | 🔴 Rødt banner — summen matcher ikke bankens sluttsummer |
 | `test-6-uleselige-linjer.csv` | ⚠️ Merknad: «2 linjer med dato ble ikke lest inn» |
 
@@ -86,6 +87,25 @@ Dette er en regnskapsfaglig vurdering som **ikke er bekreftet med
 regnskapsfører**. Viser det seg at avhukingen faktisk trengs, legg steget inn
 igjen i `index.html` (lista under «Slik importerer du i Tripletex») og i
 utskriften fra `convert_to_gbat10.py`.
+
+## Konto og motkonto
+
+Standard er **1920 Bank** mot **1909 Diverse motpost**. Begge kan endres i
+steg 3 — nødvendig når klienten har flere bankkonti, ellers havner både
+driftskonto og skattetrekkskonto på 1920. «Annet kontonummer …» gir fritekst
+for kontoplaner uten forhåndsvalg. Ufullstendig inntasting faller tilbake til
+standard, så filen aldri blir ugyldig underveis.
+
+## Når banken ikke gjenkjennes
+
+Feiler gjenkjenningen, tilbyr siden **«Sett opp kolonnene selv»**. Da vises de
+ti første radene i filen med et nedtrekk over hver kolonne — Dato, Tekst,
+Inn, Ut eller Beløp (+/−). Skilletegn og første datarad gjettes automatisk,
+og kolonnenavn gjenkjennes på både norsk og engelsk.
+
+Det betyr at en ny bank kan tas i bruk uten kodeendring. Datoer leses som
+`03.08.2026`, `2026-08-03` og `3/8-2026`; beløp som både `1.234,56` og
+`1,234.56`.
 
 ## Merknader til regnskapsføreren
 

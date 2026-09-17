@@ -11,21 +11,31 @@ const fs = require('fs');
 const path = require('path');
 
 // ---------- Minimal DOM ----------
-function El() {
-  return {
-    children: [], className: '', textContent: '', innerHTML: '', hidden: false,
-    style: {}, classList: { add() {}, remove() {} },
-    append(...k) { this.children.push(...k); },
-    appendChild(k) { this.children.push(k); return k; },
+function El(tag) {
+  const e = {
+    tag: tag || 'div', children: [], className: '', hidden: false, value: '', selected: false,
+    _text: '', _html: '', style: {}, classList: { add() {}, remove() {}, toggle() {} },
+    append(...k) { e.children.push(...k); },
+    appendChild(k) { e.children.push(k); return k; },
     addEventListener() {}, click() {}, select() {},
+    querySelectorAll(sel) {
+      const treff = [];
+      (function gaa(n) { n.children.forEach(c => { if (c.tag === sel) treff.push(c); gaa(c); }); })(e);
+      return treff;
+    },
+    get textContent() { return e._text; },
+    set textContent(v) { e._text = v; if (v === '') e.children = []; },
+    get innerHTML() { return e._html; },
+    set innerHTML(v) { e._html = v; if (v === '') e.children = []; },
   };
+  return e;
 }
 const reg = {};
 // Kontovelgerne må ha verdier før koden leser dem.
-function velger(v) { const e = El(); e.value = v; return e; }
+function velger(v) { const e = El('select'); e.value = v; return e; }
 global.document = {
   getElementById: id => (reg[id] = reg[id] || El()),
-  createElement: () => El(),
+  createElement: tag => El(tag),
   addEventListener() {}, body: El(),
 };
 global.window = { addEventListener() {}, scrollTo() {} };
@@ -33,12 +43,16 @@ global.navigator = {};
 
 reg.bankKonto = velger('1920');
 reg.motKonto = velger('1909');
+reg.skilletegn = El('select');
+reg.startRad = El('input');
+reg.mapperTabell = El('table');
 
 // ---------- Last koden fra index.html ----------
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const js = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).join('\n');
 (0, eval)(js + ';globalThis.__api={detectFormat,parseKontoinfo,parseOversiktKonti,' +
-  'parseTransaksjonsliste,parseNordea,buildGBAT10,extractControlTotals,renderNotes,suggestFilename,forklarTomFil};');
+  'parseTransaksjonsliste,parseNordea,buildGBAT10,extractControlTotals,renderNotes,suggestFilename,forklarTomFil,' +
+  'klargjorMapper,lesMedMapping,tolkBelop,tolkDato};');
 const api = globalThis.__api;
 
 // Leser filen slik nettleseren gjør det.
@@ -117,5 +131,42 @@ for (const c of CASER) {
   else console.log(`ok    ${c.fil.padEnd(32)} ${r.fmt.padEnd(14)} ${r.antall} tx  ${r.banner}`);
 }
 
-console.log(feil === 0 ? `\nAlle ${CASER.length} testene passerte.` : `\n${feil} test(er) feilet.`);
+// ---------- Kolonnevelgeren ----------
+// En bank vi ikke stotter skal kunne leses ved at brukeren peker ut kolonnene.
+// Her sjekker vi at gjettingen treffer, og at resultatet blir riktig.
+(function testKolonnevelger() {
+  const fil = 'test-1-ukjent-bank.csv';
+  const text = fs.readFileSync(path.join(__dirname, 'testfiler', fil), 'utf8');
+  api.klargjorMapper({ name: fil, size: text.length }, text);
+
+  const problemer = [];
+  if (reg.skilletegn.value !== ',') problemer.push(`skilletegn ${JSON.stringify(reg.skilletegn.value)} != ","`);
+  if (String(reg.startRad.value) !== '2') problemer.push(`startrad ${reg.startRad.value} != 2`);
+
+  const selects = reg.mapperTabell.querySelectorAll('select');
+  const roller = selects.map(sel => {
+    const v = sel.children.filter(o => o.selected)[0];
+    sel.value = v ? v.value : '';
+    return sel.value;
+  });
+  if (roller.join('|') !== 'dato|tekst|ut|inn|') problemer.push(`roller ${roller.join('|')}`);
+
+  api.lesMedMapping();
+  const html = reg.summary.innerHTML;
+  if (!/Transaksjoner<\/td><td>2 \(1 inn \/ 1 ut\)/.test(html)) problemer.push('feil antall transaksjoner');
+  // nb-NO bruker hardt mellomrom som tusenskille, derfor \s og ikke vanlig mellomrom.
+  if (!/Sum inn<\/td><td[^>]*>\+12\s500,00 kr/.test(html)) problemer.push('feil sum inn');
+  if (reg.step2.hidden || reg.step3.hidden) problemer.push('steg 2/3 ble ikke vist');
+
+  // Tallformat: norsk og engelsk skal begge tolkes riktig.
+  const tall = [['1.234,56', 1234.56], ['1,234.56', 1234.56], ['2450.00', 2450], ['-8 681,93', -8681.93]];
+  tall.forEach(t => {
+    if (Math.abs(api.tolkBelop(t[0]) - t[1]) > 0.001) problemer.push(`tolkBelop("${t[0]}") != ${t[1]}`);
+  });
+
+  if (problemer.length) { feil++; console.log(`FEIL  kolonnevelger\n      ${problemer.join('\n      ')}`); }
+  else console.log('ok    kolonnevelger'.padEnd(38) + 'gjettet skilletegn, startrad og 4 kolonneroller');
+})();
+
+console.log(feil === 0 ? `\nAlle ${CASER.length + 1} testene passerte.` : `\n${feil} test(er) feilet.`);
 process.exit(feil === 0 ? 0 : 1);
