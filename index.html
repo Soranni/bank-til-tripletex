@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Hindrer at siden i det hele tatt KAN sende data noe sted. -->
+<meta http-equiv="Content-Security-Policy" content="connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>Bank til Tripletex</title>
+<style>
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0; padding: 2rem 1rem 3rem; background: #f5f7fa; color: #1f2937;
+    line-height: 1.55;
+  }
+  .container { max-width: 740px; margin: 0 auto; }
+  h1 { font-size: 1.7rem; margin: 0 0 0.3rem; }
+  .subtitle { color: #6b7280; margin: 0 0 1.75rem; font-size: 0.95rem; }
+
+  /* ---- Steg ---- */
+  .step {
+    background: #fff; border-radius: 12px; padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 1rem;
+  }
+  .step-head { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1rem; }
+  .step-head .num {
+    flex: none; width: 1.75rem; height: 1.75rem; border-radius: 50%;
+    background: #3b82f6; color: #fff; font-size: 0.9rem; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-head h2 { font-size: 1.05rem; margin: 0; font-weight: 600; }
+
+  /* ---- Slippsone ---- */
+  #dropzone {
+    border: 2px dashed #d1d5db; border-radius: 10px; padding: 2.5rem 1rem;
+    text-align: center; cursor: pointer; transition: all 0.15s; background: #fafbfc;
+  }
+  #dropzone:hover, #dropzone.drag-over { border-color: #3b82f6; background: #eff6ff; }
+  #dropzone .icon { font-size: 2.5rem; margin-bottom: 0.4rem; }
+  #dropzone .main { font-size: 1.05rem; font-weight: 500; }
+  #dropzone .hint { color: #6b7280; font-size: 0.85rem; margin-top: 0.4rem; }
+
+  .chosen {
+    display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
+    padding: 0.75rem 1rem; font-size: 0.95rem;
+  }
+  .chosen .ok { color: #059669; font-weight: 700; }
+  .chosen .fname { font-weight: 500; word-break: break-all; }
+
+  button.link {
+    background: none; border: none; color: #2563eb; padding: 0;
+    font-size: 0.9rem; width: auto; text-decoration: underline; cursor: pointer;
+  }
+  button.link:hover { background: none; color: #1d4ed8; }
+
+  .tip {
+    font-size: 0.85rem; color: #6b7280; margin: 0.9rem 0 0;
+    padding-left: 1.4rem; position: relative;
+  }
+  .tip::before { content: "\1f4a1"; position: absolute; left: 0; }
+
+  /* ---- Kontrollbanner ---- */
+  .banner { border-radius: 8px; padding: 0.9rem 1rem; font-size: 0.9rem; margin-bottom: 1rem; }
+  .banner.ok      { background: #f0fdf4; border-left: 4px solid #16a34a; color: #14532d; }
+  .banner.warn    { background: #fef2f2; border-left: 4px solid #dc2626; color: #7f1d1d; }
+  .banner.neutral { background: #f8fafc; border-left: 4px solid #94a3b8; color: #334155; }
+
+  /* ---- Oppsummering ---- */
+  table.summary { width: 100%; border-collapse: collapse; }
+  table.summary td { padding: 0.45rem 0; border-bottom: 1px solid #f3f4f6; }
+  table.summary td:first-child { color: #6b7280; width: 48%; }
+  table.summary td:last-child { text-align: right; font-weight: 500; }
+  td.positive { color: #059669; }
+  td.negative { color: #dc2626; }
+  tr.total td { border-top: 2px solid #e5e7eb; border-bottom: none; padding-top: 0.6rem; }
+
+  /* ---- Forhandsvisning ---- */
+  #previewWrap { max-height: 320px; overflow: auto; margin-top: 0.75rem;
+    border: 1px solid #e5e7eb; border-radius: 8px; }
+  table.preview { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  table.preview td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+  table.preview tr:last-child td { border-bottom: none; }
+  .p-date { color: #6b7280; white-space: nowrap; width: 5.5rem; }
+  .p-amt { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  /* ---- Knapper ---- */
+  button {
+    background: #3b82f6; color: #fff; border: none; padding: 0.8rem 1.5rem;
+    border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%;
+  }
+  button:hover { background: #2563eb; }
+  button.secondary { background: #f3f4f6; color: #1f2937; margin-top: 0.6rem; }
+  button.secondary:hover { background: #e5e7eb; }
+  .dl-name { font-size: 0.82rem; color: #6b7280; text-align: center; margin-top: 0.5rem; }
+  .dl-name code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; word-break: break-all; }
+
+  /* ---- Instruksjoner ---- */
+  .steps-list { font-size: 0.9rem; padding-left: 1.3rem; margin: 1.5rem 0 0; }
+  .steps-list li { margin-bottom: 0.35rem; }
+  .steps-list strong { background: #fef3c7; padding: 0 0.25rem; border-radius: 3px; }
+  .formats { font-size: 0.82rem; color: #6b7280; margin-top: 0.9rem; }
+
+  details.help {
+    margin-top: 1rem; background: #fffbeb; border-left: 4px solid #f59e0b;
+    border-radius: 6px; padding: 0.75rem 1rem; font-size: 0.85rem;
+  }
+  details.help summary { cursor: pointer; font-weight: 600; color: #92400e; }
+  details.help ol { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+  details.help code { background: #fef3c7; padding: 1px 4px; border-radius: 3px; font-family: monospace; }
+  .months { margin-top: 0.6rem; font-weight: 600; color: #92400e; }
+
+  /* ---- Feil ---- */
+  .error {
+    background: #fef2f2; color: #991b1b; padding: 1.25rem;
+    border-radius: 12px; border-left: 4px solid #dc2626; margin-bottom: 1rem;
+  }
+  .err-title { font-weight: 600; margin-bottom: 0.6rem; }
+  .err-details {
+    background: #fff; border: 1px solid #fecaca; border-radius: 6px;
+    padding: 0.6rem 0.75rem; margin: 0 0 0.75rem; font-size: 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 260px; overflow: auto; color: #7f1d1d;
+  }
+  .err-hint { font-size: 0.8rem; margin-top: 0.6rem; }
+
+  .footer { text-align: center; color: #9ca3af; font-size: 0.75rem; margin-top: 2rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Bank til Tripletex</h1>
+  <p class="subtitle">Gjør kontoutskriften fra banken om til en importfil for Tripletex.
+  Filen leses i din egen nettleser og sendes aldri videre.</p>
+
+  <!-- ============ STEG 1 ============ -->
+  <section class="step" id="step1">
+    <div class="step-head"><span class="num">1</span><h2>Velg kontoutskrift fra banken</h2></div>
+
+    <div id="dropzone">
+      <div class="icon">📄</div>
+      <div class="main">Dra filen hit, eller klikk for å velge</div>
+      <div class="hint">Nordea · DNB/Sbanken · Sparebank1/Eika · Handelsbanken</div>
+      <input type="file" id="fileInput" accept=".csv,.txt" hidden>
+    </div>
+
+    <div class="chosen" id="chosen" hidden>
+      <span class="ok">✓</span>
+      <span class="fname" id="chosenName"></span>
+      <button type="button" class="link" id="changeBtn">Velg en annen fil</button>
+    </div>
+
+    <p class="tip">Last filen rett ned fra nettbanken. Ikke åpne og lagre den i Excel først —
+    da endres formatet, og filen kan ikke leses.</p>
+  </section>
+
+  <div class="error" id="error" hidden></div>
+
+  <!-- ============ STEG 2 ============ -->
+  <section class="step" id="step2" hidden>
+    <div class="step-head"><span class="num">2</span><h2>Kontroller at tallene stemmer</h2></div>
+    <div class="banner" id="checkBanner"></div>
+    <table class="summary" id="summary"></table>
+    <button type="button" class="link" id="previewToggle"></button>
+    <div id="previewWrap" hidden>
+      <table class="preview"><tbody id="previewBody"></tbody></table>
+    </div>
+  </section>
+
+  <!-- ============ STEG 3 ============ -->
+  <section class="step" id="step3" hidden>
+    <div class="step-head"><span class="num">3</span><h2>Last ned og importer i Tripletex</h2></div>
+
+    <button id="downloadBtn">⬇️ Last ned importfilen</button>
+    <div class="dl-name">Lagres som <code id="dlName"></code></div>
+
+    <ol class="steps-list">
+      <li>Logg inn på Tripletex</li>
+      <li>Gå til <strong>Regnskap → Import</strong></li>
+      <li>Velg filtype <strong>Mamut GBAT10</strong></li>
+      <li>Velg tegnsett <strong>ISO-8859-1</strong></li>
+      <li>Last opp filen du nettopp lastet ned</li>
+      <li>Huk av <strong>La Tripletex generere mva-posteringene</strong></li>
+      <li>Forhåndsvis og bekreft</li>
+    </ol>
+    <div class="formats">Hver transaksjon blir ett bilag: <strong>1920 Bank</strong> mot <strong>1909 Diverse motpost</strong>.</div>
+
+    <details class="help">
+      <summary>Får du feilmelding om «avstemt kontoutskrift»?</summary>
+      <p style="margin:0.6rem 0 0">«<em>Postering kan ikke gjøres i en periode der det finnes en avstemt
+      kontoutskrift</em>» betyr at konto <code>1920</code> allerede er avstemt i Tripletex for en av
+      månedene i filen. Du får ikke importere inn i en avstemt periode.</p>
+      <div class="months" id="months"></div>
+      <ol>
+        <li>Gå til <strong>Regnskap → Bankavstemming</strong></li>
+        <li>Finn måneden som er avstemt (vises som «låst»)</li>
+        <li>Klikk <strong>Fjern avstemming</strong></li>
+        <li>Importer filen på nytt</li>
+        <li>Avstem på nytt etterpå med oppdaterte tall</li>
+      </ol>
+    </details>
+
+    <button class="secondary" id="resetBtn">Konverter en ny fil</button>
+  </section>
+
+  <div class="footer">
+    Alt skjer lokalt i nettleseren din — ingen data sendes til noen server.<br>
+    Versjon <span id="version"></span>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+const BANK_ACCOUNT = 1920;
+const COUNTER_ACCOUNT = 1909;
+
+// ============ Filhåndtering ============
+
+async function readFile(file) {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  // UTF-8 BOM?
+  if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+    return new TextDecoder("utf-8").decode(buffer);
+  }
+  // Prøv UTF-8 strict, fall tilbake til ISO-8859-1
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    return new TextDecoder("iso-8859-1").decode(buffer);
+  }
+}
+
+// ============ Format-deteksjon ============
+
+function detectFormat(text) {
+  const head = text.split("\n").slice(0, 8).join("\n");
+  if (head.includes('"Konto"') && head.includes("Bokført dato")) return "kontoinfo";
+  const first = text.split("\n")[0].trim();
+  if (first.startsWith("Dato;Type;") && first.includes("Beskrivelse")) return "transaksjonsliste";
+  // DNB/Sbanken "OversiktKonti". Banken har byttet kolonnenavn mellom eksportene:
+  // 2025 sier "Beskrivelse", 2026 sier "Omtale". Krev derfor bare Dato + Inn + Ut.
+  if (first.startsWith("Dato;") && first.includes("Inn") && first.includes("Ut")) return "oversiktkonti";
+  return "nordea";
+}
+
+// ============ CSV-parser med quotes ============
+
+function parseCsvLine(line, delim) {
+  const out = [];
+  let cur = "";
+  let inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
+      else { inQuote = !inQuote; }
+    } else if (c === delim && !inQuote) {
+      out.push(cur); cur = "";
+    } else { cur += c; }
+  }
+  out.push(cur);
+  return out;
+}
+
+// ============ Tall- og datoparsering ============
+
+function parseNoNum(s) {
+  // "1.234,56" → 1234.56 | "-1.234,56" → -1234.56
+  if (!s) return NaN;
+  return parseFloat(s.replace(/\s/g, "").replace(/\./g, "").replace(",", "."));
+}
+
+function parseAmountSimple(s) {
+  // For Nordea: "1234,56" eller "1234.56"
+  if (!s) return NaN;
+  return parseFloat(s.replace(/\s/g, "").replace(/"/g, "").replace(",", "."));
+}
+
+function parseDateDMY(s) {
+  const m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  if (!m) return null;
+  return { year: +m[3], month: +m[2], day: +m[1] };
+}
+
+function parseDateYMD(s) {
+  const m = s.match(/^(\d{4})\/(\d{2})\/(\d{2})/);
+  if (!m) return null;
+  return { year: +m[1], month: +m[2], day: +m[3] };
+}
+
+function ymdString(d) {
+  return `${d.year}${String(d.month).padStart(2, "0")}${String(d.day).padStart(2, "0")}`;
+}
+
+// ============ Parsers per format ============
+
+function parseNordea(text) {
+  const info = { account_name: "", account_number: "" };
+  const lines = text.split(/\r?\n/);
+  let i = 0;
+  // Header
+  for (; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith("Navn:")) {
+      const parts = line.split(",");
+      info.account_name = (parts[1] || "").trim();
+    } else if (line.startsWith("Kontonummer:")) {
+      const parts = line.split(",");
+      info.account_number = (parts[1] || "").trim();
+    } else if (line.includes("Bokf") && line.includes("ringsdato")) {
+      i++; break;
+    }
+  }
+  const transactions = [];
+  for (; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    const cols = parseCsvLine(line, ",");
+    if (!cols[0] || cols[0].startsWith("Sum") || cols[0].startsWith("Total")) continue;
+    const d = parseDateYMD(cols[0].trim());
+    if (!d) continue;
+    const ut = (cols[1] || "").trim();
+    const inn = (cols[2] || "").trim();
+    const navn = (cols[5] || "").trim();
+    const tittel = (cols[6] || "").trim();
+    const kid = (cols[7] || "").trim();
+    const betalingstype = (cols[9] || "").trim();
+    let amount = 0, isCredit = true;
+    if (inn) {
+      amount = Math.abs(parseAmountSimple(inn)); isCredit = true;
+    } else if (ut) {
+      amount = Math.abs(parseAmountSimple(ut)); isCredit = false;
+    }
+    if (!amount || isNaN(amount)) continue;
+    const parts = [];
+    if (navn) parts.push(navn);
+    else if (tittel) parts.push(tittel);
+    if (betalingstype && betalingstype.toLowerCase() !== (parts[0] || "").toLowerCase()) parts.push(`(${betalingstype})`);
+    if (kid) parts.push(`KID:${kid}`);
+    const desc = (parts.join(" ") || "Banktransaksjon").substring(0, 100);
+    transactions.push({ date: ymdString(d), period: d.month, year: d.year, amount, is_credit: isCredit, desc });
+  }
+  if (transactions.length) {
+    info.period_from = transactions.reduce((a, b) => a.date < b.date ? a : b).date;
+    info.period_to = transactions.reduce((a, b) => a.date > b.date ? a : b).date;
+  }
+  return { header: info, transactions };
+}
+
+function parseOversiktKonti(text) {
+  const lines = text.split(/\r?\n/);
+  const transactions = [];
+  let ownAccount = "";
+  // Finn kolonnene på navn i stedet for faste posisjoner. Banken har endret
+  // både navn ("Beskrivelse" -> "Omtale") og rekkefølge mellom eksportene,
+  // så faste indekser ryker ved neste endring. Faller tilbake på gammel plass.
+  const headerCols = parseCsvLine(lines[0] || "", ";")
+    .map(s => s.trim().replace(/^"|"$/g, "").toLowerCase());
+  const col = (names, fallback) => {
+    for (const n of names) {
+      const idx = headerCols.indexOf(n);
+      if (idx !== -1) return idx;
+    }
+    return fallback;
+  };
+  const iDato = col(["dato"], 0);
+  const iTekst = col(["omtale", "beskrivelse", "tekst"], 1);
+  const iInn = col(["inn", "innkommende"], 3);
+  const iUt = col(["ut", "utgaende", "utgående"], 4);
+  const iTil = col(["til konto", "til"], 5);
+  const iFra = col(["fra konto", "fra"], 6);
+
+  for (let i = 1; i < lines.length; i++) {  // hopp over header
+    const line = lines[i];
+    if (!line.trim()) continue;
+    const cols = parseCsvLine(line, ";").map(s => s.trim().replace(/^"|"$/g, ""));
+    if (!cols[0]) continue;
+    const d = parseDateDMY(cols[iDato]);
+    if (!d) continue;
+    const beskrivelse = cols[iTekst] || "";
+    const inn = cols[iInn] || "";
+    const ut = cols[iUt] || "";
+    const tilKonto = cols[iTil] || "";
+    const fraKonto = cols[iFra] || "";
+    let amount = 0, isCredit = true;
+    if (inn) {
+      amount = Math.abs(parseAmountSimple(inn)); isCredit = true;
+      if (!ownAccount) ownAccount = tilKonto;
+    } else if (ut) {
+      amount = Math.abs(parseAmountSimple(ut)); isCredit = false;
+      if (!ownAccount) ownAccount = fraKonto;
+    }
+    if (!amount || isNaN(amount)) continue;
+    transactions.push({
+      date: ymdString(d), period: d.month, year: d.year,
+      amount, is_credit: isCredit,
+      desc: (beskrivelse || "Banktransaksjon").substring(0, 100),
+    });
+  }
+  const header = { account_name: "", account_number: ownAccount };
+  if (transactions.length) {
+    header.period_from = transactions.reduce((a, b) => a.date < b.date ? a : b).date;
+    header.period_to = transactions.reduce((a, b) => a.date > b.date ? a : b).date;
+  }
+  return { header, transactions };
+}
+
+function parseTransaksjonsliste(text) {
+  // Format: Dato;Type;Antall;Konto;Inn;Ut;Valuta;Beskrivelse;Fra konto;Til konto;Fra;Til
+  const lines = text.split(/\r?\n/);
+  const transactions = [];
+  let ownAccount = "";
+  for (let i = 1; i < lines.length; i++) {  // hopp over header
+    const line = lines[i];
+    if (!line.trim()) continue;
+    const cols = parseCsvLine(line, ";").map(s => s.trim().replace(/^"|"$/g, ""));
+    if (!cols[0]) continue;
+    const d = parseDateDMY(cols[0]);
+    if (!d) continue;
+    const konto = cols[3] || "";
+    const inn = cols[4] || "";
+    const ut = cols[5] || "";
+    const beskrivelse = cols[7] || "";
+    if (!ownAccount && konto) ownAccount = konto;
+    let amount = 0, isCredit = true;
+    if (inn) {
+      amount = Math.abs(parseAmountSimple(inn)); isCredit = true;
+    } else if (ut) {
+      amount = Math.abs(parseAmountSimple(ut)); isCredit = false;
+    }
+    if (!amount || isNaN(amount)) continue;
+    transactions.push({
+      date: ymdString(d), period: d.month, year: d.year,
+      amount, is_credit: isCredit,
+      desc: (beskrivelse || "Banktransaksjon").substring(0, 100),
+    });
+  }
+  const header = { account_name: "", account_number: ownAccount };
+  if (transactions.length) {
+    header.period_from = transactions.reduce((a, b) => a.date < b.date ? a : b).date;
+    header.period_to = transactions.reduce((a, b) => a.date > b.date ? a : b).date;
+  }
+  return { header, transactions };
+}
+
+function parseKontoinfo(text) {
+  const lines = text.split(/\r?\n/);
+  const transactions = [];
+  let ownAccount = "", accountName = "";
+  let headerSeen = false;
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cols = parseCsvLine(line, ";").map(s => s.trim().replace(/^"|"$/g, ""));
+    const first = cols[0] || "";
+    if (!ownAccount && /^\d+\.\d+\.\d+$/.test(first)) {
+      ownAccount = first.replace(/\./g, "");
+      accountName = cols[1] || "";
+      continue;
+    }
+    if (first.startsWith("Bokf") && first.toLowerCase().includes("rt dato")) {
+      headerSeen = true; continue;
+    }
+    if (!headerSeen) continue;
+    if (cols.length < 7) continue;
+    const d = parseDateDMY(first);
+    if (!d) continue;
+    const forklaring = cols[1] || "";
+    const ut = cols[5] || "";
+    const inn = cols[6] || "";
+    let amount = 0, isCredit = true;
+    if (inn) {
+      amount = Math.abs(parseNoNum(inn)); isCredit = true;
+    } else if (ut) {
+      amount = Math.abs(parseNoNum(ut)); isCredit = false;
+    }
+    if (!amount || isNaN(amount)) continue;
+    transactions.push({
+      date: ymdString(d), period: d.month, year: d.year,
+      amount, is_credit: isCredit,
+      desc: (forklaring || "Banktransaksjon").substring(0, 100),
+    });
+  }
+  const header = { account_name: accountName, account_number: ownAccount };
+  if (transactions.length) {
+    header.period_from = transactions.reduce((a, b) => a.date < b.date ? a : b).date;
+    header.period_to = transactions.reduce((a, b) => a.date > b.date ? a : b).date;
+  }
+  return { header, transactions };
+}
+
+// ============ GBAT10-bygger ============
+
+function gbat10Line(vn, dateYmd, period, year, account, amount, desc, bankAcct = "") {
+  const amt = amount.toFixed(2);
+  const cols = [
+    "GBAT10", String(vn), dateYmd, "1", String(period), String(year),
+    String(account), "1", amt, "0", "0", "", "", "", "", "", "", "", "0",
+    bankAcct, desc, desc, "1", "0", "0", "0", "T", amt,
+  ];
+  return cols.join(";");
+}
+
+function buildGBAT10(header, transactions) {
+  const bankAcct = header.account_number || "";
+  const out = [];
+  for (let i = 0; i < transactions.length; i++) {
+    const t = transactions[i];
+    const vn = i + 1;
+    if (t.is_credit) {
+      out.push(gbat10Line(vn, t.date, t.period, t.year, BANK_ACCOUNT, t.amount, t.desc, bankAcct));
+      out.push(gbat10Line(vn, t.date, t.period, t.year, COUNTER_ACCOUNT, -t.amount, t.desc));
+    } else {
+      out.push(gbat10Line(vn, t.date, t.period, t.year, BANK_ACCOUNT, -t.amount, t.desc, bankAcct));
+      out.push(gbat10Line(vn, t.date, t.period, t.year, COUNTER_ACCOUNT, t.amount, t.desc));
+    }
+  }
+  return out.join("\n") + "\n";
+}
+
+// ============ ISO-8859-1 encoding (for nedlasting) ============
+
+function toIso88591Bytes(str) {
+  const bytes = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    bytes[i] = code <= 0xFF ? code : 0x3F;  // ? for tegn utenfor latin1
+  }
+  return bytes;
+}
+
+// ============ UI ============
+
+// Vises i bunnteksten og i feilrapporten, slik at en skjermdump rontger
+// nøyaktig hvilken versjon som ble kjørt.
+const VERSION = "2026-09-17";
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const errorDiv = document.getElementById("error");
+const chosenBox = document.getElementById("chosen");
+const chosenName = document.getElementById("chosenName");
+const changeBtn = document.getElementById("changeBtn");
+const step2 = document.getElementById("step2");
+const step3 = document.getElementById("step3");
+const checkBanner = document.getElementById("checkBanner");
+const summaryEl = document.getElementById("summary");
+const previewToggle = document.getElementById("previewToggle");
+const previewWrap = document.getElementById("previewWrap");
+const previewBody = document.getElementById("previewBody");
+const monthsEl = document.getElementById("months");
+const downloadBtn = document.getElementById("downloadBtn");
+const dlNameEl = document.getElementById("dlName");
+const resetBtn = document.getElementById("resetBtn");
+
+document.getElementById("version").textContent = VERSION;
+
+let lastGbat10 = "";
+let lastFilename = "";
+let lastErrorDetails = "";
+
+const MONTHS = ["januar", "februar", "mars", "april", "mai", "juni",
+                "juli", "august", "september", "oktober", "november", "desember"];
+
+function fmtNum(n) {
+  return n.toLocaleString("nb-NO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtDate(ymd) {
+  if (!ymd || ymd.length !== 8) return "?";
+  return ymd.substring(6, 8) + "." + ymd.substring(4, 6) + "." + ymd.substring(0, 4);
+}
+
+function formatLabel(fmt) {
+  return ({
+    nordea: "Nordea",
+    oversiktkonti: "DNB/Sbanken",
+    kontoinfo: "Sparebank1/Eika",
+    transaksjonsliste: "Handelsbanken",
+  })[fmt] || fmt;
+}
+
+// ============ Feilvisning (uten konsoll) ============
+
+function showError(msg, details) {
+  lastErrorDetails = details || "";
+  errorDiv.innerHTML = "";
+
+  const title = document.createElement("div");
+  title.className = "err-title";
+  title.textContent = "⚠️ " + msg;
+  errorDiv.appendChild(title);
+
+  if (lastErrorDetails) {
+    const pre = document.createElement("pre");
+    pre.className = "err-details";
+    pre.textContent = lastErrorDetails;
+    errorDiv.appendChild(pre);
+
+    const btn = document.createElement("button");
+    btn.className = "secondary";
+    btn.textContent = "📋 Kopier feildetaljer";
+    btn.addEventListener("click", () => copyDetails(btn));
+    errorDiv.appendChild(btn);
+
+    const hint = document.createElement("div");
+    hint.className = "err-hint";
+    hint.textContent = "Kopier teksten over (eller ta en skjermdump) og send den til Soran.";
+    errorDiv.appendChild(hint);
+  }
+
+  errorDiv.hidden = false;
+  step2.hidden = true;
+  step3.hidden = true;
+}
+
+function copyDetails(btn) {
+  const done = () => {
+    btn.textContent = "✓ Kopiert";
+    setTimeout(() => { btn.textContent = "📋 Kopier feildetaljer"; }, 2000);
+  };
+  const fallback = () => {
+    const ta = document.createElement("textarea");
+    ta.value = lastErrorDetails;
+    ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(); } catch (e) { /* ignorer */ }
+    document.body.removeChild(ta);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(lastErrorDetails).then(done).catch(fallback);
+  } else {
+    fallback();
+  }
+}
+
+// Teknisk info om filen, slik at feilen kan diagnostiseres uten konsoll.
+function fileDiagnostics(file, text, fmt, extra) {
+  const lines = text ? text.split(/\r?\n/) : [];
+  const rows = [
+    "Versjon:   " + VERSION,
+    "Fil:       " + (file ? file.name : "(ukjent)"),
+    "Størrelse: " + (file ? file.size + " byte" : "?"),
+    "Linjer:    " + lines.length,
+    // fileDiagnostics kalles kun ved feil. "nordea" er fallback-verdien fra
+    // detectFormat, så der betyr den i praksis "kjente ikke igjen formatet".
+    "Format:    " + (fmt === "nordea" ? "ikke gjenkjent (falt tilbake på Nordea)"
+                     : fmt ? formatLabel(fmt) : "ikke gjenkjent"),
+  ];
+  if (extra) rows.push("Teknisk:   " + extra);
+  rows.push("", "Første linjer i filen:");
+  lines.slice(0, 5).forEach((l, i) => rows.push("  " + (i + 1) + ": " + l.substring(0, 160)));
+  return rows.join("\n");
+}
+
+// ============ Kontrollsummer fra banken ============
+
+// Flere banker skriver sine egne sluttsummer øverst i filen. Finner vi dem,
+// kan konverteringen kryssjekkes mot bankens egne tall automatisk.
+function extractControlTotals(text) {
+  const lines = text.split(/\r?\n/).slice(0, 12);
+  for (let i = 0; i < lines.length - 1; i++) {
+    const labels = parseCsvLine(lines[i], ";").map(c => c.trim().replace(/^"|"$/g, "").toLowerCase());
+    const iIn = labels.findIndex(c => c.startsWith("sum inn"));
+    const iOut = labels.findIndex(c => c.startsWith("sum ut"));
+    if (iIn === -1 || iOut === -1) continue;
+
+    const vals = parseCsvLine(lines[i + 1], ";").map(c => c.trim().replace(/^"|"$/g, ""));
+    const inn = parseNoNum(vals[iIn]);
+    const ut = parseNoNum(vals[iOut]);
+    if (isNaN(inn) || isNaN(ut)) return null;
+    return { inn: Math.abs(inn), ut: Math.abs(ut) };
+  }
+  return null;
+}
+
+function renderCheck(control, totalIn, totalOut) {
+  checkBanner.className = "banner";
+  if (!control) {
+    checkBanner.classList.add("neutral");
+    checkBanner.innerHTML = "<strong>Denne banken oppgir ingen sluttsummer i filen.</strong><br>" +
+      "Tallene under kan derfor ikke kryssjekkes automatisk — sammenlign dem med nettbanken før du importerer.";
+    return true;
+  }
+  const avvikInn = Math.abs(control.inn - totalIn);
+  const avvikUt = Math.abs(control.ut - totalOut);
+  if (avvikInn < 0.005 && avvikUt < 0.005) {
+    checkBanner.classList.add("ok");
+    checkBanner.innerHTML = "<strong>✓ Tallene stemmer.</strong><br>" +
+      "Inn- og utbeløpene er identiske med bankens egne sluttsummer i filen.";
+    return true;
+  }
+  checkBanner.classList.add("warn");
+  checkBanner.innerHTML = "<strong>⚠️ Tallene stemmer ikke med bankens sluttsummer.</strong><br>" +
+    "Banken oppgir inn " + fmtNum(control.inn) + " kr og ut " + fmtNum(control.ut) + " kr.<br>" +
+    "Konverteringen fant inn " + fmtNum(totalIn) + " kr og ut " + fmtNum(totalOut) + " kr.<br>" +
+    "<strong>Ikke importer denne filen.</strong> Send den til Soran.";
+  return false;
+}
+
+// ============ Forhåndsvisning ============
+
+function renderPreview(transactions) {
+  previewBody.innerHTML = "";
+  for (const t of transactions) {
+    const tr = document.createElement("tr");
+
+    const td1 = document.createElement("td");
+    td1.className = "p-date";
+    td1.textContent = fmtDate(t.date);
+
+    const td2 = document.createElement("td");
+    td2.textContent = t.desc;
+
+    const td3 = document.createElement("td");
+    td3.className = "p-amt " + (t.is_credit ? "positive" : "negative");
+    td3.textContent = (t.is_credit ? "+" : "−") + fmtNum(t.amount);
+
+    tr.append(td1, td2, td3);
+    previewBody.appendChild(tr);
+  }
+  previewWrap.hidden = true;
+  previewToggle.textContent = "Vis alle " + transactions.length + " transaksjonene";
+}
+
+function renderMonths(transactions) {
+  const keys = [];
+  for (const t of transactions) {
+    const k = t.year + "-" + t.period;
+    if (!keys.includes(k)) keys.push(k);
+  }
+  const names = keys.map(k => {
+    const [y, m] = k.split("-");
+    return MONTHS[+m - 1] + " " + y;
+  });
+  monthsEl.textContent = "Denne filen inneholder posteringer i: " + names.join(", ") + ".";
+}
+
+// Filnavn regnskapsføreren kan kjenne igjen blant mange klienter,
+// f.eks. "host-tattoo-as_2026-08_gbat10.csv".
+function suggestFilename(header, transactions) {
+  const name = (header.account_name || "bank")
+    .toLowerCase()
+    .replace(/æ/g, "ae").replace(/ø/g, "o").replace(/å/g, "a")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const from = header.period_from || "";
+  const to = header.period_to || "";
+  let periode = "";
+  if (from.length === 8 && to.length === 8) {
+    periode = from.substring(0, 4) + "-" + from.substring(4, 6);
+    if (from.substring(0, 6) !== to.substring(0, 6)) {
+      periode += "_" + to.substring(0, 4) + "-" + to.substring(4, 6);
+    }
+  }
+  return [name || "bank", periode, "gbat10"].filter(Boolean).join("_") + ".csv";
+}
+
+// ============ Hovedflyt ============
+
+async function handleFile(file) {
+  errorDiv.hidden = true;
+  let text = "", fmt = "";
+  try {
+    text = await readFile(file);
+    fmt = detectFormat(text);
+    let parsed;
+    if (fmt === "kontoinfo") parsed = parseKontoinfo(text);
+    else if (fmt === "oversiktkonti") parsed = parseOversiktKonti(text);
+    else if (fmt === "transaksjonsliste") parsed = parseTransaksjonsliste(text);
+    else parsed = parseNordea(text);
+
+    const { header, transactions } = parsed;
+    if (!transactions.length) {
+      dropzone.hidden = false;
+      chosenBox.hidden = true;
+      showError("Fant ingen transaksjoner i filen. Sjekk at det er en gyldig bankutskrift.",
+                fileDiagnostics(file, text, fmt));
+      return;
+    }
+
+    const antallInn = transactions.filter(t => t.is_credit).length;
+    const totalIn = transactions.filter(t => t.is_credit).reduce((s, t) => s + t.amount, 0);
+    const totalOut = transactions.filter(t => !t.is_credit).reduce((s, t) => s + t.amount, 0);
+    const netto = totalIn - totalOut;
+
+    lastGbat10 = buildGBAT10(header, transactions);
+    lastFilename = suggestFilename(header, transactions);
+
+    // Steg 1 kollapser til en bekreftelseslinje.
+    chosenName.textContent = file.name;
+    chosenBox.hidden = false;
+    dropzone.hidden = true;
+
+    renderCheck(extractControlTotals(text), totalIn, totalOut);
+
+    summaryEl.innerHTML =
+      "<tr><td>Bank</td><td>" + formatLabel(fmt) + "</td></tr>" +
+      "<tr><td>Konto</td><td>" + (header.account_name || "") + " " +
+        (header.account_number ? "(" + header.account_number + ")" : "") + "</td></tr>" +
+      "<tr><td>Periode</td><td>" + fmtDate(header.period_from) + " – " + fmtDate(header.period_to) + "</td></tr>" +
+      "<tr><td>Transaksjoner</td><td>" + transactions.length + " (" + antallInn + " inn / " +
+        (transactions.length - antallInn) + " ut)</td></tr>" +
+      "<tr><td>Sum inn</td><td class='positive'>+" + fmtNum(totalIn) + " kr</td></tr>" +
+      "<tr><td>Sum ut</td><td class='negative'>−" + fmtNum(totalOut) + " kr</td></tr>" +
+      "<tr class='total'><td>Netto endring</td><td class='" + (netto >= 0 ? "positive" : "negative") + "'>" +
+        (netto >= 0 ? "+" : "−") + fmtNum(Math.abs(netto)) + " kr</td></tr>" +
+      "<tr><td>Blir til</td><td>" + transactions.length + " bilag (" +
+        (transactions.length * 2) + " posteringslinjer)</td></tr>";
+
+    renderPreview(transactions);
+    renderMonths(transactions);
+    dlNameEl.textContent = lastFilename;
+
+    step2.hidden = false;
+    step3.hidden = false;
+  } catch (err) {
+    console.error(err);
+    const stack = (err && err.stack) ? err.stack.split("\n").slice(0, 3).join(" | ") : String(err);
+    dropzone.hidden = false;
+    chosenBox.hidden = true;
+    showError("Feil ved lesing av fil: " + ((err && err.message) || err),
+              fileDiagnostics(file, text, fmt, stack));
+  }
+}
+
+function resetAll() {
+  fileInput.value = "";
+  lastGbat10 = "";
+  lastFilename = "";
+  errorDiv.hidden = true;
+  step2.hidden = true;
+  step3.hidden = true;
+  previewWrap.hidden = true;
+  chosenBox.hidden = true;
+  dropzone.hidden = false;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// ============ Hendelser ============
+
+dropzone.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+dropzone.addEventListener("dragover", e => {
+  e.preventDefault(); dropzone.classList.add("drag-over");
+});
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag-over"));
+dropzone.addEventListener("drop", e => {
+  e.preventDefault(); e.stopPropagation(); dropzone.classList.remove("drag-over");
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+
+// Slippes filen litt utenfor sonen, åpnet nettleseren råfila og siden forsvant.
+// Ta imot drop hvor som helst på siden i stedet.
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => {
+  e.preventDefault();
+  if (e.dataTransfer && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+
+changeBtn.addEventListener("click", () => { resetAll(); fileInput.click(); });
+resetBtn.addEventListener("click", resetAll);
+
+previewToggle.addEventListener("click", () => {
+  previewWrap.hidden = !previewWrap.hidden;
+  previewToggle.textContent = previewWrap.hidden
+    ? "Vis alle " + previewBody.children.length + " transaksjonene"
+    : "Skjul transaksjonene";
+});
+
+downloadBtn.addEventListener("click", () => {
+  const bytes = toIso88591Bytes(lastGbat10);
+  const blob = new Blob([bytes], { type: "text/csv;charset=iso-8859-1" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = lastFilename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// Uventede feil skal vises i siden, ikke bare i konsollen.
+window.addEventListener("error", e => {
+  const stack = (e.error && e.error.stack) ? e.error.stack.split("\n").slice(0, 3).join(" | ") : "";
+  showError("Uventet feil i konverteringsverktøyet.",
+            "Versjon: " + VERSION + "\nMelding: " + e.message +
+            "\nSted:    " + (e.filename || "?") + " linje " + (e.lineno || "?") +
+            (stack ? "\nTeknisk: " + stack : ""));
+});
+window.addEventListener("unhandledrejection", e => {
+  const r = e.reason;
+  const stack = (r && r.stack) ? r.stack.split("\n").slice(0, 3).join(" | ") : "";
+  showError("Uventet feil i konverteringsverktøyet.",
+            "Versjon: " + VERSION + "\nMelding: " + ((r && r.message) || r) +
+            (stack ? "\nTeknisk: " + stack : ""));
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+# Bank til Tripletex
+
+Gjør kontoutskrifter fra nettbanken om til en **Mamut GBAT10**-importfil for Tripletex.
+
+Støtter Nordea, DNB/Sbanken, Sparebank1/Eika og Handelsbanken.
+Hver transaksjon blir ett bilag: `1920 Bank` mot `1909 Diverse motpost`.
+
+## Innhold
+
+| Fil | Hva det er |
+|---|---|
+| `index.html` | Hele verktøyet — én selvstendig fil, ingen avhengigheter |
+| `convert_to_gbat10.py` | Samme konvertering som kommandolinjeverktøy |
+| `lag-testfiler.py` | Genererer de syntetiske testfilene |
+| `testfiler/` | Syntetiske testfiler — **alle data er oppdiktet** |
+
+## Personvern
+
+Filen brukeren velger **leses i nettleseren og forlater aldri maskinen**.
+Ingen opplasting, ingen server, ingen analyse, ingen informasjonskapsler.
+
+Siden setter `Content-Security-Policy: connect-src 'none'`, som gjør at den
+*teknisk ikke kan* sende data noe sted — det er håndhevet av nettleseren,
+ikke bare et løfte i teksten.
+
+> **Ekte bankutskrifter skal aldri inn i dette repoet.**
+> De ligger i `../bankdata/`, utenfor git. `.gitignore` er satt opp som
+> sikkerhetsnett, men den er siste forsvarslinje — ikke den første.
+
+## Bruk
+
+Åpne https://soranni.github.io/bank-til-tripletex/ — eller `index.html` lokalt.
+Ingen installasjon.
+
+Kommandolinje:
+
+```bash
+python3 convert_to_gbat10.py "kontoutskrift.csv" ut.csv
+```
+
+## Testing
+
+```bash
+python3 lag-testfiler.py
+```
+
+Åpne så `index.html` og dra inn hver testfil:
+
+| Fil | Forventet resultat |
+|---|---|
+| `demo-sparebank1-gyldig.csv` | ✅ Grønt banner, 12 transaksjoner |
+| `test-1-ukjent-bank.csv` | ⚠️ Fant ingen transaksjoner — format ikke gjenkjent |
+| `test-2-ingen-transaksjoner.csv` | ⚠️ Fant ingen transaksjoner — men format *gjenkjent* |
+| `test-3-excel-odelagt.csv` | ⚠️ Fant ingen transaksjoner (lagret på nytt i Excel) |
+| `test-4-nytt-kolonnenavn.csv` | ⚠️ Fant ingen transaksjoner (banken døpte om kolonnen) |
+| `test-5-avvik-i-sum.csv` | 🔴 Rødt banner — summen matcher ikke bankens sluttsummer |
+
+Skillet mellom test-1 og test-2 er poenget: «ikke gjenkjent» betyr ny/ukjent
+bank, mens «Sparebank1/Eika» + null transaksjoner betyr at filen var tom.
+
+## Feilsøking uten konsoll
+
+Brukeren er regnskapsfører, ikke utvikler. Feil vises derfor i selve siden,
+med en **📋 Kopier feildetaljer**-knapp. Rapporten inneholder versjonsnummer,
+filnavn, størrelse, oppdaget format og de fem første linjene i filen — nok
+til å stille diagnose uten å be om selve bankfilen.
+
+## Kontrollsum
+
+Flere banker skriver sine egne sluttsummer øverst i filen. Finnes de, leser
+siden dem og kryssjekker mot det konverteringen faktisk fant:
+
+* **Grønt** — identisk med bankens sluttsummer
+* **Rødt** — avvik, med begge tallsett og beskjed om ikke å importere
+* **Grått** — banken oppgir ingen sluttsummer, kan ikke kryssjekkes

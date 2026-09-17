@@ -1,0 +1,28 @@
+# ============================================================
+#  Ekte bankdata skal ALDRI ligge i dette repoet.
+#  Den hører hjemme i ../bankdata/ , utenfor git.
+#  Reglene under er et sikkerhetsnett mot uhell.
+# ============================================================
+
+# Vanlige eksportnavn fra nettbankene
+Csv*.txt
+kontoinfo*.txt
+OversiktKonti*
+Transaksjonsliste*
+Bedriftskonto*
+*_gbat10.csv
+banktransaksjoner*.csv
+
+# Ingen CSV i rota - kun de syntetiske filene i testfiler/
+/*.csv
+!testfiler/*.csv
+
+# Regneark og PDF er aldri kode
+*.xlsx
+*.xls
+*.pdf
+
+# Diverse
+__pycache__/
+*.bak
+.DS_Store
