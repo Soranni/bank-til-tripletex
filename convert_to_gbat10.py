@@ -464,7 +464,6 @@ def convert_nordea_to_gbat10(input_file, output_file):
     print(f"\nImporter i Tripletex:")
     print(f"  Filtype: Mamut GBAT10")
     print(f"  Tegnsett: ISO-8859-1")
-    print(f"  Huk av: La Tripletex generere mva-posteringene")
 
 
 if __name__ == '__main__':

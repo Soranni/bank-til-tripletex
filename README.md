@@ -66,6 +66,21 @@ med en **📋 Kopier feildetaljer**-knapp. Rapporten inneholder versjonsnummer,
 filnavn, størrelse, oppdaget format og de fem første linjene i filen — nok
 til å stille diagnose uten å be om selve bankfilen.
 
+## Åpne spørsmål
+
+**Mva-avhukingen ved import (fjernet 17.09.2026).**
+Instruksjonene ba tidligere brukeren huke av «La Tripletex generere
+mva-posteringene». Den er tatt bort, fordi den etter alt å dømme er uten
+effekt her: GBAT10-filen setter mva-kode `1` — altså ingen mva — på samtlige
+linjer, og motposten er `1909 Diverse motpost`. Mva oppstår først når 1909
+omposteres videre til resultatkonti, og det skjer manuelt i Tripletex etterpå,
+ikke ved importen.
+
+Dette er en regnskapsfaglig vurdering som **ikke er bekreftet med
+regnskapsfører**. Viser det seg at avhukingen faktisk trengs, legg steget inn
+igjen i `index.html` (lista under «Slik importerer du i Tripletex») og i
+utskriften fra `convert_to_gbat10.py`.
+
 ## Merknader til regnskapsføreren
 
 Steg 2 viser en «Verdt å sjekke»-liste når noe fortjener et blikk:
