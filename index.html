@@ -108,6 +108,18 @@
   .dl-name { font-size: 0.82rem; color: #6b7280; text-align: center; margin-top: 0.5rem; }
   .dl-name code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; word-break: break-all; }
 
+  /* ---- Kontovelgere ---- */
+  .konti { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+  .konto-felt { flex: 1 1 13rem; }
+  .konto-felt label { display: block; font-size: 0.8rem; color: #6b7280; margin-bottom: 0.25rem; }
+  .konto-felt select, .konto-felt input {
+    width: 100%; padding: 0.5rem 0.6rem; font-size: 0.9rem; font-family: inherit;
+    border: 1px solid #d1d5db; border-radius: 6px; background: #fff; color: #1f2937;
+  }
+  .konto-felt input { margin-top: 0.35rem; }
+  .konto-felt input.ugyldig { border-color: #dc2626; background: #fef2f2; }
+  .konto-hint { font-size: 0.8rem; color: #6b7280; margin: 0 0 1.1rem; }
+
   /* ---- Instruksjoner ---- */
   .steps-list { font-size: 0.9rem; padding-left: 1.3rem; margin: 1.5rem 0 0; }
   .steps-list li { margin-bottom: 0.35rem; }
@@ -189,6 +201,32 @@
   <section class="step" id="step3" hidden>
     <div class="step-head"><span class="num">3</span><h2>Last ned og importer i Tripletex</h2></div>
 
+    <div class="konti">
+      <div class="konto-felt">
+        <label for="bankKonto">Bankkonto (debet/kredit)</label>
+        <select id="bankKonto">
+          <option value="1920" selected>1920 – Bankinnskudd</option>
+          <option value="1921">1921 – Bankinnskudd 2</option>
+          <option value="1922">1922 – Bankinnskudd 3</option>
+          <option value="1950">1950 – Skattetrekkskonto</option>
+          <option value="1900">1900 – Kontanter</option>
+          <option value="annet">Annet kontonummer …</option>
+        </select>
+        <input id="bankKontoAnnet" hidden inputmode="numeric" maxlength="4" placeholder="F.eks. 1925">
+      </div>
+      <div class="konto-felt">
+        <label for="motKonto">Motkonto</label>
+        <select id="motKonto">
+          <option value="1909" selected>1909 – Diverse motpost</option>
+          <option value="1999">1999 – Annen motpost</option>
+          <option value="annet">Annet kontonummer …</option>
+        </select>
+        <input id="motKontoAnnet" hidden inputmode="numeric" maxlength="4" placeholder="F.eks. 2999">
+      </div>
+    </div>
+    <p class="konto-hint">Standard er <strong>1920</strong> mot <strong>1909</strong>. Endre bare hvis
+    klientens kontoplan krever noe annet — for eksempel når klienten har flere bankkonti.</p>
+
     <button id="downloadBtn">⬇️ Last ned importfilen</button>
     <div class="dl-name">Lagres som <code id="dlName"></code></div>
 
@@ -200,9 +238,7 @@
       <li>Last opp filen du nettopp lastet ned</li>
       <li>Forhåndsvis og bekreft</li>
     </ol>
-    <div class="formats">Hver transaksjon blir ett bilag: <strong>1920 Bank</strong> mot
-    <strong>1909 Diverse motpost</strong>. Hele beløpet havner på 1909 og må omposteres
-    videre til riktige konti — 1909 skal ende på null.</div>
+    <div class="formats" id="konteringsTekst"></div>
 
     <details class="help">
       <summary>Får du feilmelding om «avstemt kontoutskrift»?</summary>
@@ -231,8 +267,9 @@
 <script>
 "use strict";
 
-const BANK_ACCOUNT = 1920;
-const COUNTER_ACCOUNT = 1909;
+// Settes fra kontovelgerne i steg 3. Standard er 1920 mot 1909.
+let BANK_ACCOUNT = 1920;
+let COUNTER_ACCOUNT = 1909;
 
 // ============ Filhåndtering ============
 
@@ -253,9 +290,18 @@ async function readFile(file) {
 
 // ============ Format-deteksjon ============
 
+// Bankene skriver datokolonnen ulikt og døper den om over tid:
+// "Bokført dato", "Bokføringsdato", "BOKFØRT DATO". Anførselstegn forsvinner
+// hvis filen har vært innom Excel. Matcher derfor løst.
+function erDatoHeader(celle) {
+  return /^"?\s*bokf[^";,]*dato\s*"?$/i.test(String(celle).trim());
+}
+
 function detectFormat(text) {
-  const head = text.split("\n").slice(0, 8).join("\n");
-  if (head.includes('"Konto"') && head.includes("Bokført dato")) return "kontoinfo";
+  const head = text.split("\n").slice(0, 8);
+  const harKonto = head.some(l => /^"?\s*konto\s*"?\s*[;,\t]/i.test(l.trim()));
+  const harDato = head.some(l => erDatoHeader((l.split(/[;,\t]/)[0] || "").trim()));
+  if (harKonto && harDato) return "kontoinfo";
   const first = text.split("\n")[0].trim();
   if (first.startsWith("Dato;Type;") && first.includes("Beskrivelse")) return "transaksjonsliste";
   // DNB/Sbanken "OversiktKonti". Banken har byttet kolonnenavn mellom eksportene:
@@ -478,7 +524,7 @@ function parseKontoinfo(text) {
       accountName = cols[1] || "";
       continue;
     }
-    if (first.startsWith("Bokf") && first.toLowerCase().includes("rt dato")) {
+    if (erDatoHeader(first)) {
       headerSeen = true; continue;
     }
     if (!headerSeen) continue;
@@ -572,12 +618,24 @@ const monthsEl = document.getElementById("months");
 const downloadBtn = document.getElementById("downloadBtn");
 const dlNameEl = document.getElementById("dlName");
 const resetBtn = document.getElementById("resetBtn");
+const bankKontoEl = document.getElementById("bankKonto");
+const bankKontoAnnetEl = document.getElementById("bankKontoAnnet");
+const motKontoEl = document.getElementById("motKonto");
+const motKontoAnnetEl = document.getElementById("motKontoAnnet");
+const konteringsTekstEl = document.getElementById("konteringsTekst");
 
 document.getElementById("version").textContent = VERSION;
+
+// Siste vellykkede parsing, slik at filen kan bygges på nytt når
+// regnskapsføreren bytter kontonummer uten å velge filen om igjen.
+let sisteParsing = null;
 
 let lastGbat10 = "";
 let lastFilename = "";
 let lastErrorDetails = "";
+
+// Etter at variablene over finnes - fyller konteringsteksten i steg 3.
+oppdaterKontering();
 
 const MONTHS = ["januar", "februar", "mars", "april", "mai", "juni",
                 "juli", "august", "september", "oktober", "november", "desember"];
@@ -879,6 +937,63 @@ function suggestFilename(header, transactions) {
   return [name || "bank", periode, "gbat10"].filter(Boolean).join("_") + ".csv";
 }
 
+// Norske bankfiler bruker semikolon nettopp fordi desimaltegnet er komma.
+// Lagres filen på nytt med komma som skilletegn, kolliderer de to, og
+// beløpene lar seg ikke lese. Da er eneste løsning å hente filen på nytt.
+function forklarTomFil(text) {
+  const head = text.split(/\r?\n/).slice(0, 8);
+  const kommaHeader = head.some(l => {
+    const f = l.split(",");
+    return f.length > 2 && (erDatoHeader(f[0]) || /^"?\s*konto\s*"?$/i.test(f[0].trim()));
+  });
+  if (kommaHeader) {
+    return "Filen ser ut til å ha blitt lagret på nytt i Excel, med komma som skilletegn. " +
+           "Norske bankfiler bruker semikolon, fordi komma allerede brukes i beløpene " +
+           "— da blandes de to, og filen kan ikke leses. " +
+           "Last filen ned på nytt fra nettbanken, og åpne den ikke i Excel først.";
+  }
+  return null;
+}
+
+// ============ Kontovalg ============
+
+// Leser ett kontofelt. "Annet kontonummer ..." bytter til fritekst, slik at
+// kontoplaner vi ikke har forhåndsvalg for også kan brukes.
+function lesKonto(select, input, standard) {
+  if (select.value !== "annet") {
+    input.hidden = true;
+    input.classList.remove("ugyldig");
+    return parseInt(select.value, 10);
+  }
+  input.hidden = false;
+  const v = input.value.trim();
+  if (/^\d{4}$/.test(v)) {
+    input.classList.remove("ugyldig");
+    return parseInt(v, 10);
+  }
+  // Ufullstendig inntasting skal ikke gi et ugyldig bilag - fall tilbake.
+  input.classList.toggle("ugyldig", v.length > 0);
+  return standard;
+}
+
+function oppdaterKontering() {
+  BANK_ACCOUNT = lesKonto(bankKontoEl, bankKontoAnnetEl, 1920);
+  COUNTER_ACCOUNT = lesKonto(motKontoEl, motKontoAnnetEl, 1909);
+
+  konteringsTekstEl.innerHTML = "Hver transaksjon blir ett bilag: <strong>" + BANK_ACCOUNT +
+    " Bank</strong> mot <strong>" + COUNTER_ACCOUNT + " motpost</strong>. Hele beløpet havner på " +
+    COUNTER_ACCOUNT + " og må omposteres videre til riktige konti — " + COUNTER_ACCOUNT +
+    " skal ende på null.";
+
+  // Bygg filen på nytt med de valgte kontoene.
+  if (sisteParsing) {
+    lastGbat10 = buildGBAT10(sisteParsing.header, sisteParsing.transactions);
+  }
+}
+
+[bankKontoEl, motKontoEl].forEach(el => el.addEventListener("change", oppdaterKontering));
+[bankKontoAnnetEl, motKontoAnnetEl].forEach(el => el.addEventListener("input", oppdaterKontering));
+
 // ============ Hovedflyt ============
 
 async function handleFile(file) {
@@ -897,7 +1012,8 @@ async function handleFile(file) {
     if (!transactions.length) {
       dropzone.hidden = false;
       chosenBox.hidden = true;
-      showError("Fant ingen transaksjoner i filen. Sjekk at det er en gyldig bankutskrift.",
+      showError(forklarTomFil(text) ||
+                "Fant ingen transaksjoner i filen. Sjekk at det er en gyldig bankutskrift.",
                 fileDiagnostics(file, text, fmt));
       return;
     }
@@ -907,7 +1023,8 @@ async function handleFile(file) {
     const totalOut = transactions.filter(t => !t.is_credit).reduce((s, t) => s + t.amount, 0);
     const netto = totalIn - totalOut;
 
-    lastGbat10 = buildGBAT10(header, transactions);
+    sisteParsing = { header: header, transactions: transactions };
+    oppdaterKontering();
     lastFilename = suggestFilename(header, transactions);
 
     // Steg 1 kollapser til en bekreftelseslinje.
@@ -951,6 +1068,7 @@ async function handleFile(file) {
 
 function resetAll() {
   fileInput.value = "";
+  sisteParsing = null;
   lastGbat10 = "";
   lastFilename = "";
   errorDiv.hidden = true;

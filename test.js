@@ -21,6 +21,8 @@ function El() {
   };
 }
 const reg = {};
+// Kontovelgerne må ha verdier før koden leser dem.
+function velger(v) { const e = El(); e.value = v; return e; }
 global.document = {
   getElementById: id => (reg[id] = reg[id] || El()),
   createElement: () => El(),
@@ -29,11 +31,14 @@ global.document = {
 global.window = { addEventListener() {}, scrollTo() {} };
 global.navigator = {};
 
+reg.bankKonto = velger('1920');
+reg.motKonto = velger('1909');
+
 // ---------- Last koden fra index.html ----------
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const js = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).join('\n');
 (0, eval)(js + ';globalThis.__api={detectFormat,parseKontoinfo,parseOversiktKonti,' +
-  'parseTransaksjonsliste,parseNordea,buildGBAT10,extractControlTotals,renderNotes,suggestFilename};');
+  'parseTransaksjonsliste,parseNordea,buildGBAT10,extractControlTotals,renderNotes,suggestFilename,forklarTomFil};');
 const api = globalThis.__api;
 
 // Leser filen slik nettleseren gjør det.
@@ -67,7 +72,9 @@ function kjor(fil) {
   if (t.length) api.renderNotes(t, kontroll, text);
   const merknader = reg.notesList.children.map(r => r.children[1].textContent);
 
-  return { fmt, antall: t.length, banner, merknader, gbat10: t.length ? api.buildGBAT10(parsed.header, t) : '' };
+  return { fmt, antall: t.length, banner, merknader,
+           forklaring: t.length ? null : api.forklarTomFil(text),
+           gbat10: t.length ? api.buildGBAT10(parsed.header, t) : '' };
 }
 
 // ---------- Forventninger ----------
@@ -75,8 +82,9 @@ const CASER = [
   { fil: 'demo-sparebank1-gyldig.csv',    fmt: 'kontoinfo', antall: 12, banner: 'gronn' },
   { fil: 'test-1-ukjent-bank.csv',        fmt: 'nordea',    antall: 0 },
   { fil: 'test-2-ingen-transaksjoner.csv', fmt: 'kontoinfo', antall: 0 },
-  { fil: 'test-3-excel-odelagt.csv',      fmt: 'nordea',    antall: 0 },
-  { fil: 'test-4-nytt-kolonnenavn.csv',   fmt: 'nordea',    antall: 0 },
+  { fil: 'test-3-excel-lagret.csv',       fmt: 'kontoinfo', antall: 12, banner: 'gronn' },
+  { fil: 'test-4-nytt-kolonnenavn.csv',   fmt: 'kontoinfo', antall: 12, banner: 'gronn' },
+  { fil: 'test-7-excel-komma.csv',        fmt: 'kontoinfo', antall: 0, forklaring: 'komma som skilletegn' },
   { fil: 'test-5-avvik-i-sum.csv',        fmt: 'kontoinfo', antall: 12, banner: 'rod' },
   { fil: 'test-6-uleselige-linjer.csv',   fmt: 'kontoinfo', antall: 12, banner: 'gronn',
     merknad: 'ble ikke lest inn' },
@@ -91,6 +99,8 @@ for (const c of CASER) {
   if (c.banner && r.banner !== c.banner) problemer.push(`banner ${r.banner} != ${c.banner}`);
   if (c.merknad && !r.merknader.some(m => m.includes(c.merknad)))
     problemer.push(`manglet merknad "${c.merknad}"`);
+  if (c.forklaring && !(r.forklaring || '').includes(c.forklaring))
+    problemer.push(`manglet forklaring "${c.forklaring}"`);
 
   // Hvert bilag må balansere til null.
   if (r.gbat10) {

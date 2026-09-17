@@ -85,10 +85,16 @@ skriv('test-1-ukjent-bank.csv',
 # 2: riktig bank, men banken eksporterte null transaksjoner
 skriv('test-2-ingen-transaksjoner.csv', bygg([]))
 
-# 3: gyldig fil åpnet og lagret på nytt i Excel (komma + UTF-8 BOM)
-excel = '\n'.join(','.join(c.strip('"') for c in linje.split('";"'))
-                  for linje in gyldig.strip().split('\n'))
-skriv('test-3-excel-odelagt.csv', excel.replace('"', '') + '\n', encoding='utf-8-sig')
+# 3: lagret på nytt i Excel på norsk oppsett - semikolon beholdes, men
+#    anførselstegn forsvinner og tegnsettet blir UTF-8. Skal fortsatt leses.
+excel_semi = gyldig.replace('"', '')
+skriv('test-3-excel-lagret.csv', excel_semi, encoding='utf-8-sig')
+
+# 7: lagret med komma som skilletegn - kolliderer med desimalkommaet i
+#    beløpene, og lar seg ikke redde. Skal gi en egen forklaring.
+excel_komma = '\n'.join(','.join(c.strip('"') for c in linje.split('";"'))
+                        for linje in gyldig.strip().split('\n'))
+skriv('test-7-excel-komma.csv', excel_komma.replace('"', '') + '\n', encoding='utf-8-sig')
 
 # 4: banken har døpt om datokolonnen
 skriv('test-4-nytt-kolonnenavn.csv', bygg(POSTER, dato_kolonne='Bokføringsdato'))
