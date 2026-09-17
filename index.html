@@ -565,6 +565,13 @@ let lastErrorDetails = "";
 const MONTHS = ["januar", "februar", "mars", "april", "mai", "juni",
                 "juli", "august", "september", "oktober", "november", "desember"];
 
+// Kontonavn kommer fra bankfilen. Et firmanavn med & eller < i seg ville
+// ellers ødelegge tabellen når den settes inn med innerHTML.
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function fmtNum(n) {
   return n.toLocaleString("nb-NO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -798,9 +805,9 @@ async function handleFile(file) {
     renderCheck(extractControlTotals(text), totalIn, totalOut);
 
     summaryEl.innerHTML =
-      "<tr><td>Bank</td><td>" + formatLabel(fmt) + "</td></tr>" +
-      "<tr><td>Konto</td><td>" + (header.account_name || "") + " " +
-        (header.account_number ? "(" + header.account_number + ")" : "") + "</td></tr>" +
+      "<tr><td>Bank</td><td>" + esc(formatLabel(fmt)) + "</td></tr>" +
+      "<tr><td>Konto</td><td>" + esc(header.account_name || "") + " " +
+        (header.account_number ? "(" + esc(header.account_number) + ")" : "") + "</td></tr>" +
       "<tr><td>Periode</td><td>" + fmtDate(header.period_from) + " – " + fmtDate(header.period_to) + "</td></tr>" +
       "<tr><td>Transaksjoner</td><td>" + transactions.length + " (" + antallInn + " inn / " +
         (transactions.length - antallInn) + " ut)</td></tr>" +
