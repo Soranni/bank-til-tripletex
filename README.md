@@ -12,6 +12,7 @@ Hver transaksjon blir ett bilag: `1920 Bank` mot `1909 Diverse motpost`.
 | `index.html` | Hele verktøyet — én selvstendig fil, ingen avhengigheter |
 | `convert_to_gbat10.py` | Samme konvertering som kommandolinjeverktøy |
 | `lag-testfiler.py` | Genererer de syntetiske testfilene |
+| `test.js` | Regresjonstest — `node test.js` |
 | `testfiler/` | Syntetiske testfiler — **alle data er oppdiktet** |
 
 ## Personvern
@@ -41,8 +42,13 @@ python3 convert_to_gbat10.py "kontoutskrift.csv" ut.csv
 ## Testing
 
 ```bash
-python3 lag-testfiler.py
+python3 lag-testfiler.py   # regenerer testfilene
+node test.js               # kjører regresjonstesten
 ```
+
+`test.js` kjører den faktiske koden fra `index.html` mot hver testfil med en
+DOM-stub, og sjekker format, antall transaksjoner, farge på kontrollbanneret,
+forventede merknader og at hvert bilag balanserer til null.
 
 Åpne så `index.html` og dra inn hver testfil:
 
