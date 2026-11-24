@@ -2,7 +2,7 @@
 
 Gjør kontoutskrifter fra nettbanken om til en **Mamut GBAT10**-importfil for Tripletex.
 
-Støtter Nordea, DNB/Sbanken, Sparebank1/Eika og Handelsbanken.
+Støtter Nordea, DNB/Sbanken, Sparebank1/Eika, Handelsbanken og banker med én beløpskolonne («Bokført dato» … «Beløp i NOK», pluss inn og minus ut).
 Hver transaksjon blir ett bilag: `1920 Bank` mot `1909 Diverse motpost`.
 
 ## Innhold

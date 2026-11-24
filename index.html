@@ -354,6 +354,10 @@ function detectFormat(text) {
   // DNB/Sbanken "OversiktKonti". Banken har byttet kolonnenavn mellom eksportene:
   // 2025 sier "Beskrivelse", 2026 sier "Omtale". Krev derfor bare Dato + Inn + Ut.
   if (first.startsWith("Dato;") && first.includes("Inn") && first.includes("Ut")) return "oversiktkonti";
+  // Én kolonne med beløpet (pluss inn, minus ut), datoen først og ingen kontolinje over:
+  // "Bokført dato";"Rentedato";"Tekst";"Antall";"Beløp i NOK";"Bokført saldo i NOK";…
+  const kol = parseCsvLine(first, ";").map(c => c.trim().replace(/^"|"$/g, ""));
+  if (erDatoHeader(kol[0] || "") && kol.some(c => /^beløp/i.test(c))) return "belop";
   return "nordea";
 }
 
@@ -602,6 +606,43 @@ function parseKontoinfo(text) {
   return { header, transactions };
 }
 
+// Én beløpskolonne: kolonnene finnes på navn, fortegnet sier inn eller ut.
+// En linje som ikke er bokført ennå (status «Reservert», «Venter» o.l.) hoppes over.
+function parseBelop(text) {
+  const lines = text.split(/\r?\n/);
+  const transactions = [];
+  let kDato = -1, kTekst = -1, kBelop = -1, kStatus = -1;
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cols = parseCsvLine(line, ";").map(c => c.trim().replace(/^"|"$/g, ""));
+    if (kDato < 0) {
+      if (!erDatoHeader(cols[0] || "")) continue;
+      kDato = 0;
+      kTekst = cols.findIndex(c => /^(tekst|forklarende tekst|beskrivelse|omtale)$/i.test(c));
+      kBelop = cols.findIndex(c => /^beløp/i.test(c) && !/saldo/i.test(c));
+      kStatus = cols.findIndex(c => /^status$/i.test(c));
+      continue;
+    }
+    const d = parseDateDMY(cols[kDato] || "");
+    if (!d || kBelop < 0) continue;
+    if (kStatus >= 0 && /reserv|venter|ikke bokf/i.test(cols[kStatus] || "")) continue;
+    const belop = parseNoNum(cols[kBelop] || "");
+    if (!belop || isNaN(belop)) continue;
+    const tekst = (kTekst >= 0 ? cols[kTekst] : "").replace(/\s+/g, " ").trim();
+    transactions.push({
+      date: ymdString(d), period: d.month, year: d.year,
+      amount: Math.abs(belop), is_credit: belop > 0,
+      desc: (tekst || "Banktransaksjon").substring(0, 100),
+    });
+  }
+  const header = { account_name: "", account_number: "" };
+  if (transactions.length) {
+    header.period_from = transactions.reduce((a, b) => a.date < b.date ? a : b).date;
+    header.period_to = transactions.reduce((a, b) => a.date > b.date ? a : b).date;
+  }
+  return { header, transactions };
+}
+
 // ============ GBAT10-bygger ============
 
 function gbat10Line(vn, dateYmd, period, year, account, amount, desc, bankAcct = "") {
@@ -720,6 +761,7 @@ function formatLabel(fmt) {
     oversiktkonti: "DNB/Sbanken",
     kontoinfo: "Sparebank1/Eika",
     transaksjonsliste: "Handelsbanken",
+    belop: "Bank med én beløpskolonne",
   })[fmt] || fmt;
 }
 
@@ -1377,6 +1419,7 @@ async function handleFile(file) {
     if (fmt === "kontoinfo") parsed = parseKontoinfo(text);
     else if (fmt === "oversiktkonti") parsed = parseOversiktKonti(text);
     else if (fmt === "transaksjonsliste") parsed = parseTransaksjonsliste(text);
+    else if (fmt === "belop") parsed = parseBelop(text);
     else parsed = parseNordea(text);
 
     const { header, transactions } = parsed;
