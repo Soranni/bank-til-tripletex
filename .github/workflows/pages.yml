@@ -16,11 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publiser:
+  bygg:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.publisering.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,5 +39,15 @@ jobs:
       - uses: actions/upload-pages-artifact@v4
         with:
           path: .
+
+  # Egen jobb, slik GitHubs mal gjør: i samme jobb fant deploy-pages iblant ikke
+  # opplastingen ennå («No artifacts named github-pages»).
+  publiser:
+    needs: bygg
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publisering.outputs.page_url }}
+    steps:
       - id: publisering
         uses: actions/deploy-pages@v4
