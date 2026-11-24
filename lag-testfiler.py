@@ -115,4 +115,16 @@ uleselig = gyldig.rstrip('\n') + '\n' + '\n'.join([
 ]) + '\n'
 skriv('test-6-uleselige-linjer.csv', uleselig)
 
+# 8: én beløpskolonne (pluss inn, minus ut), ingen kontolinje over. Den reserverte
+#    linjen er ikke bokført ennå og skal hoppes over.
+skriv('test-8-en-belopskolonne.csv', '\n'.join([
+    q('Bokført dato', 'Rentedato', 'Tekst', 'Antall', 'Beløp i NOK', 'Bokført saldo i NOK', 'Status', 'Bankens arkivreferanse'),
+    q('03.08.2026', '03.08.2026', 'Overføring  1000001 KARI NORDMANN', '', '12500,00', '12500,00', 'Utført', '9750      000001'),
+    q('04.08.2026', '04.08.2026', 'Varekjøp DEKK & FELG ENGROS', '', '-8900,50', '3599,50', 'Utført', '9750      000002'),
+    q('05.08.2026', '05.08.2026', 'Overføring  1000003 OLA HANSEN', '', '4375,00', '7974,50', 'Utført', '9750      000003'),
+    q('06.08.2026', '06.08.2026', 'Giro FORSIKRING NORD', '', '-1.330,49', '6644,01', 'Utført', '9750      000004'),
+    q('07.08.2026', '07.08.2026', 'Varekjøp VERKTØY SØR AS', '', '-3199,00', '3445,01', 'Reservert', ''),
+    q('08.08.2026', '08.08.2026', 'Renter', '', '42,10', '6686,11', 'Utført', '9750      000005'),
+]) + '\n', encoding='utf-8')
+
 print('\nFerdig. Alle data er oppdiktet.')

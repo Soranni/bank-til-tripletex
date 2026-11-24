@@ -51,7 +51,7 @@ reg.mapperTabell = El('table');
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const js = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).join('\n');
 (0, eval)(js + ';globalThis.__api={detectFormat,parseKontoinfo,parseOversiktKonti,' +
-  'parseTransaksjonsliste,parseNordea,buildGBAT10,extractControlTotals,renderNotes,suggestFilename,forklarTomFil,' +
+  'parseTransaksjonsliste,parseBelop,parseNordea,buildGBAT10,extractControlTotals,renderNotes,suggestFilename,forklarTomFil,' +
   'klargjorMapper,lesMedMapping,tolkBelop,tolkDato};');
 const api = globalThis.__api;
 
@@ -69,6 +69,7 @@ function kjor(fil) {
   const parsed = fmt === 'kontoinfo' ? api.parseKontoinfo(text)
     : fmt === 'oversiktkonti' ? api.parseOversiktKonti(text)
     : fmt === 'transaksjonsliste' ? api.parseTransaksjonsliste(text)
+    : fmt === 'belop' ? api.parseBelop(text)
     : api.parseNordea(text);
   const t = parsed.transactions;
   const kontroll = api.extractControlTotals(text);
@@ -100,6 +101,7 @@ const CASER = [
   { fil: 'test-4-nytt-kolonnenavn.csv',   fmt: 'kontoinfo', antall: 12, banner: 'gronn' },
   { fil: 'test-7-excel-komma.csv',        fmt: 'kontoinfo', antall: 0, forklaring: 'komma som skilletegn' },
   { fil: 'test-5-avvik-i-sum.csv',        fmt: 'kontoinfo', antall: 12, banner: 'rod' },
+  { fil: 'test-8-en-belopskolonne.csv',   fmt: 'belop',     antall: 5 },
   { fil: 'test-6-uleselige-linjer.csv',   fmt: 'kontoinfo', antall: 12, banner: 'gronn',
     merknad: 'ble ikke lest inn' },
 ];
