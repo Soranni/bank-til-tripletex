@@ -880,6 +880,53 @@ function extractControlTotals(text) {
   return null;
 }
 
+// For banker uten sluttsummer, men med en saldokolonne («Bokført saldo i NOK»): hvert beløp
+// skal være forskjellen mellom saldoen på linjen og linjen før. Summene bygges av saldoene,
+// ikke av beløpene, så et feillest beløp eller en linje som mangler gir rødt.
+function saldoKontroll(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  let kDato = -1, kBelop = -1, kSaldo = -1, kStatus = -1;
+  const rader = [];
+  for (const line of lines) {
+    const cols = parseCsvLine(line, ";").map(c => c.trim().replace(/^"|"$/g, ""));
+    if (kDato < 0) {
+      if (!erDatoHeader(cols[0] || "")) continue;
+      kDato = 0;
+      kBelop = cols.findIndex(c => /^beløp/i.test(c) && !/saldo/i.test(c));
+      kSaldo = cols.findIndex(c => /saldo/i.test(c));
+      kStatus = cols.findIndex(c => /^status$/i.test(c));
+      if (kBelop < 0 || kSaldo < 0) return null;
+      continue;
+    }
+    if (!parseDateDMY(cols[kDato] || "")) continue;
+    if (kStatus >= 0 && /reserv|venter|ikke bokf/i.test(cols[kStatus] || "")) continue;
+    const belop = parseNoNum(cols[kBelop] || ""), saldo = parseNoNum(cols[kSaldo] || "");
+    if (isNaN(belop) || isNaN(saldo)) return null;
+    rader.push({ belop, saldo });
+  }
+  if (!rader.length) return null;
+  // Eldste først eller nyeste først: den rekkefølgen der saldoene henger sammen.
+  for (const r of [rader, rader.slice().reverse()]) {
+    let inn = 0, ut = 0, brudd = 0;
+    for (let i = 0; i < r.length; i++) {
+      const endring = i === 0 ? r[0].belop : r[i].saldo - r[i - 1].saldo;
+      if (i > 0 && Math.abs(endring - r[i].belop) >= 0.005) brudd++;
+      if (endring > 0) inn += endring; else ut -= endring;
+    }
+    if (!brudd) {
+      const inngaende = r[0].saldo - r[0].belop, utgaende = r[r.length - 1].saldo;
+      return { inn, ut, inngaende, utgaende, kilde: "saldo" };
+    }
+  }
+  // Henger ikke sammen i noen rekkefølge: summene fra saldoene i filrekkefølgen gir rødt.
+  let inn = 0, ut = 0;
+  for (let i = 1; i < rader.length; i++) {
+    const e = rader[i].saldo - rader[i - 1].saldo;
+    if (e > 0) inn += e; else ut -= e;
+  }
+  return { inn, ut, inngaende: null, utgaende: null, kilde: "saldo" };
+}
+
 function renderCheck(control, totalIn, totalOut) {
   checkBanner.className = "banner";
   if (!control) {
@@ -892,8 +939,9 @@ function renderCheck(control, totalIn, totalOut) {
   const avvikUt = Math.abs(control.ut - totalOut);
   if (avvikInn < 0.005 && avvikUt < 0.005) {
     checkBanner.classList.add("ok");
-    checkBanner.innerHTML = "<strong>✓ Tallene stemmer.</strong><br>" +
-      "Inn- og utbeløpene er identiske med bankens egne sluttsummer i filen.";
+    checkBanner.innerHTML = "<strong>✓ Tallene stemmer.</strong><br>" + (control.kilde === "saldo"
+      ? "Hvert beløp stemmer med bankens saldo, linje for linje."
+      : "Inn- og utbeløpene er identiske med bankens egne sluttsummer i filen.");
     return true;
   }
   checkBanner.classList.add("warn");
@@ -1380,7 +1428,7 @@ function visResultat(file, header, transactions, text, banknavn) {
     chosenBox.hidden = false;
     dropzone.hidden = true;
 
-    const kontroll = extractControlTotals(text);
+    const kontroll = extractControlTotals(text) || saldoKontroll(text);
     renderCheck(kontroll, totalIn, totalOut);
 
     summaryEl.innerHTML =
