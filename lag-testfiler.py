@@ -127,4 +127,8 @@ skriv('test-8-en-belopskolonne.csv', '\n'.join([
     q('08.08.2026', '08.08.2026', 'Renter', '', '42,10', '6686,11', 'Utført', '9750      000005'),
 ]) + '\n', encoding='utf-8')
 
+# 9: som 8, men ett beløp stemmer ikke med saldoen (lest feil) -> rødt
+with open(os.path.join(UT, 'test-8-en-belopskolonne.csv'), encoding='utf-8') as f:
+    skriv('test-9-belop-mot-saldo.csv', f.read().replace('"4375,00";"7974,50"', '"437,50";"7974,50"'), encoding='utf-8')
+
 print('\nFerdig. Alle data er oppdiktet.')
